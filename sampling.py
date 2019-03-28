@@ -20,6 +20,30 @@ def gather_nd_reshape(t, indices, final_shape):
     return K.reshape(h, final_shape)
 
 
+def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
+      """
+      if d_max < 0:
+          d_max = batch_size + d_max
+      inds = []
+      if not replace:
+        for i in range(batch_size):
+          sub_batch = list(range(batch_size))
+          if pop:
+            sub_batch.pop(i)
+          shuffle(sub_batch)
+          inds.append(list(enumerate(sub_batch[:d_max])))
+        return inds
+      else:
+        for i in range(batch_size):
+            inds.append(list(enumerate(np.random.choice(batch_size, size = d_max, replace = True))))
+        return inds
 
 def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False,
 				replace=False, fx_clip=None, plus_sx=True, return_noise=False,
@@ -72,10 +96,19 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False,
 	z_dim = K.int_shape(fx)[1]
 	
 
-	inds = K.reshape(random_indices(batch_size, d_max), (-1, 1))
+	if replace:
+		inds = K.reshape(random_indices(batch_size, d_max), (-1, 1))
+		stack_dmax = gather_nd_reshape(sx, inds, (-1, d_max, z_dim))
+		stack_zmean = gather_nd_reshape(fx, inds, (-1, d_max, z_dim))
+	else:
+		# NOTE : Sampling without replacement determines the batch size as currently implemented (i.e. != None)
+		# this means you have to use a fit_generator to train if you'd data samples % batch != 0 (i.e. can't handle smaller batches)
+		inds = permute_neighbor_indices(batch, d_max, replace = replace, pop = pop)
+	    c_z_stack = tf.stack([sx for k in range(d_max)])  
+	    f_z_stack = tf.stack([fx for k in range(d_max)])  
 
-	stack_dmax = gather_nd_reshape(sx, inds, (-1, d_max, z_dim))
-	stack_zmean = gather_nd_reshape(fx, inds, (-1, d_max, z_dim))
+	    stack_dmax = tf.gather_nd(c_z_stack, inds)
+	    stack_zmean = tf.gather_nd(f_z_stack, inds)
 
 
 	if calc_log:
@@ -109,7 +142,6 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False,
 
 
 	return noisy_encoding if not return_noise else noise_tensor
-  
 
 
 class ShiftConstant(Layer):
