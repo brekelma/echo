@@ -19,7 +19,7 @@ def gather_nd_reshape(t, indices, final_shape):
     h = tf.gather_nd(t, indices)
     return K.reshape(h, final_shape)
 
-
+# only used for without replacement
 def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters
@@ -104,11 +104,11 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False,
 		# NOTE : Sampling without replacement determines the batch size as currently implemented (i.e. != None)
 		# this means you have to use a fit_generator to train if you'd data samples % batch != 0 (i.e. can't handle smaller batches)
 		inds = permute_neighbor_indices(batch, d_max, replace = replace, pop = pop)
-	    c_z_stack = tf.stack([sx for k in range(d_max)])  
-	    f_z_stack = tf.stack([fx for k in range(d_max)])  
+		c_z_stack = tf.stack([sx for k in range(d_max)])  
+		f_z_stack = tf.stack([fx for k in range(d_max)])  
 
-	    stack_dmax = tf.gather_nd(c_z_stack, inds)
-	    stack_zmean = tf.gather_nd(f_z_stack, inds)
+		stack_dmax = tf.gather_nd(c_z_stack, inds)
+		stack_zmean = tf.gather_nd(f_z_stack, inds)
 
 
 	if calc_log:
@@ -146,9 +146,9 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False,
 
 class ShiftConstant(Layer):
   def __init__(self,  latents = None, # only necessary if you're calling on a layer with different last dimension than desired for latent space
-  					  init = 1.0, # width of uniform mean-shift initialization
-  					  scale = 1, # could speed up gradient descent by taking bigger steps
-  					  activation = None, **kwargs):
+		  init = 1.0, # width of uniform mean-shift initialization
+		  scale = 1, # could speed up gradient descent by taking bigger steps
+		  activation = None, **kwargs):
 	  self.latents = latents
 	  self.trainable = True
 	  self.beta = init
