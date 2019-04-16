@@ -13,7 +13,7 @@ USC Information Sciences Institute
 ```
 python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --dataset 'binary_mnist'
 ```
-Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter ```beta```, which is multiplied by the rate term, or specify the dataset using ```'binary_mnist'```, ```'omniglot'```, or ```'fmnist'.``` . Analysis tools are mostly omitted, but the model loss training history is saved in a pickle file.
+Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter ```beta```, which is multiplied by the rate term, or specify the dataset using ```'binary_mnist'```, ```'omniglot'```, or ```'fmnist'.``` . Analysis tools are mostly omitted for now, but the model loss training history is saved in a pickle file.
 
 ## Echo
 
