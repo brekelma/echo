@@ -28,4 +28,4 @@ echo_loss = Lambda(model_utils.layers.echo_loss)([z_log_scale])
 ```
 
 ## Comparison Methods
-We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations : standard Gaussian prior, standard Gaussian with MMD penalty (```info_vae.json``` or ```iaf_prior_mmd.json```), MAF, and VampPrior.  All combinations can be found in the ```configs/``` folder. 
+We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations : standard Gaussian prior, standard Gaussian with MMD penalty (```info_vae.json``` or ```iaf_prior_mmd.json```), Masked Autoregressive Flow (MAF), and VampPrior.  All combinations can be found in the ```configs/``` folder. 
