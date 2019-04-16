@@ -14,7 +14,7 @@ import tensorflow as tf
 #from losses import discrim_loss, binary_crossentropy
 from random import shuffle, randint
 from functools import partial
-import model_utils.losses
+import model_utils.losses as losses
 import copy
 import importlib 
 import itertools
