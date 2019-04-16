@@ -1,4 +1,4 @@
-# Echo Noise Channel for Exact Mutual Information Calculation
+# Echo Noise Channel for Exact Mutual Information
 
 Code replicating the experiments in:  https://arxiv.org/abs/1904.07199
    
