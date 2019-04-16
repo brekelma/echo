@@ -54,7 +54,7 @@ if args.beta is not None:
 		elif loss_dict['weight'] == 0:
 			pass
 		else:
-			m.losses[0]['weight'] = args.beta
+			loss_dict['weight'] = args.beta
 
 
 m.fit(d.x_train, verbose = args.verbose, validate = args.validate, fit_gen = args.fit_gen)
