@@ -26,4 +26,4 @@ echo_loss = Lambda(model_utils.layers.echo_loss)([z_log_scale])
 ```
 
 ## Comparison Methods
-The following comparison methods are included in the  ```configs/``` folder.  We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations
+We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations .  All combinations can be found in the ```configs/``` folder.
