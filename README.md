@@ -13,4 +13,4 @@ Instructions:
 ```
 python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --dataset 'binary_mnist'
 ```
-Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter beta or specify the dataset out of 'binary_mnist', 'omniglot', and 'fmnist'.
+Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter ```beta``` or specify the dataset using ```'binary_mnist', 'omniglot', and 'fmnist'.```
