@@ -1,6 +1,6 @@
 # Echo Noise Channel for Exact Mutual Information
 
-Code replicating the experiments in:  https://arxiv.org/abs/1904.07199
+Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/1904.07199
    
 ```
 Exact Rate-Distortion in Autoencoders via Echo Noise 
