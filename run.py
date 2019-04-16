@@ -7,7 +7,6 @@ import json
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, default='test_config.json')
 parser.add_argument('--noise', type=str)
-parser.add_argument('--constraint', type=float)
 parser.add_argument('--filename', type=str, default='latest_unnamed_run')
 parser.add_argument('--beta', type=float)
 parser.add_argument('--validate', type=bool, default = 1)
@@ -48,13 +47,15 @@ if args.noise is not None:
 	if args.noise == 'additive':
 		m.layers[0]['layer_kwargs']['multiplicative'] = False
 if args.beta is not None:
-	for loss_dict in m.losses:
-		if 'mmd' in loss_dict['type']:
+	for loss in m.losses:
+		if not isinstance(loss, dict): # reconstruction is a Loss object, so will be skipped
+			continue
+		if 'mmd' in loss['type']:
 			pass
-		elif loss_dict['weight'] == 0:
+		elif loss['weight'] == 0:
 			pass
 		else:
-			loss_dict['weight'] = args.beta
+			loss['weight'] = args.beta
 
 
 m.fit(d.x_train, verbose = args.verbose, validate = args.validate, fit_gen = args.fit_gen)

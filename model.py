@@ -132,7 +132,7 @@ class NoiseModel(Model):
 
 		self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
 
-		self.model_loss_weights = [tf.Variable(lw, dtype = tf.float32, trainable = False) for lw in self.model_loss_weights]
+		#self.model_loss_weights = [tf.Variable(lw, dtype = tf.float32, trainable = False) for lw in self.model_loss_weights]
 		
 		#if not self.lagrangian_fit: # OMITTED
 		self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
@@ -142,7 +142,8 @@ class NoiseModel(Model):
 		print()
 		print("Losses:")
 		for i in range(len(self.model_loss_weights)):
-			print(self.model.metrics_names[i], ": ", self.model_loss_weights[i])
+			print(self.model_outputs[i].name.split('/')[0], ": ", self.model_loss_weights[i])
+		print()
 		print("Layers:")
 		for i in self.model.layers[1:]:
 			try:
