@@ -6,3 +6,7 @@ Rob Brekelmans, Daniel Moyer, Aram Galstyan, Greg Ver Steeg
 USC Information Sciences Institute   
 
 
+Instructions:  
+```
+python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --dataset 'binary_mnist'
+```
