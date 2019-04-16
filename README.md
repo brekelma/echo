@@ -26,7 +26,7 @@ z_log_scale = Dense(32, activation = tf.math.log_sigmoid)(h)
 z_activation = Lambda(model_utils.layers.echo_sample)([z_mean, z_log_scale])
 echo_loss = Lambda(model_utils.layers.echo_loss)([z_log_scale])
 ```
-We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None, meaning the model cannot accommodate different batch sizes (e.g. end of training if data.shape[0] % batch > 0) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
+We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None. This means the model cannot accommodate different batch sizes (e.g. end of training if ```data.shape[0] % batch > 0```) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
 
 
 ## Comparison Methods
