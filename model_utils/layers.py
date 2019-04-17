@@ -14,7 +14,7 @@ import tensorflow as tf
 #from losses import discrim_loss, binary_crossentropy
 from random import shuffle, randint
 from functools import partial
-import model_utils.losses
+import model_utils.losses as losses
 import copy
 import importlib 
 import itertools
@@ -445,7 +445,7 @@ class PseudoInput(Layer):
       self.set_weights([self.init])
       self.initialize = False
  
-    return tf.multiply(K.ones_like(x), self.pixels)
+    return K.expand_dims(self.pixels,0) #tf.multiply(K.ones_like(x), self.pixels)
 
 
   def get_inputs(self):
@@ -458,25 +458,28 @@ class PseudoInput(Layer):
 
 
 class VampNetwork(Layer):
-  def __init__(self, encoder_mu = None, encoder_var = None, layers = None, inputs = None, activation = None, init = None, lr = 0.0003, arch = 'alemi', **kwargs):
+  def __init__(self, encoder_mu = None, encoder_var = None, layers = None, inputs = None, input_shape = (28,28,1), activation = None, init = None, lr = 0.0003, arch = 'conv', **kwargs):
+      # if no encoders, will train new q(z|x)
       self.layers = layers
-      self.inputs = inputs if inputs is not None else 1000
+      self.model_layers = []
+
+      # feed encoder models (used for vae, but not iaf)
+      self.encoder_mu = encoder_mu
+      self.encoder_var = encoder_var
+
+      self.inputs = inputs if inputs is not None else 500
       self.activation = activation if activation is not None else 'relu'
-      self.trainable = True
       self.pseudo_inputs = []
       self.pseudo_init = None
-      self.model_layers = []
       self.create_network = True
       self.lr = lr
-      self.arch = arch
-      self.inp_shp = (28,28,1)
-      self.encoder = encoder_mu
-      #self.encoder_var = encoder_var
-      #if beta is not None:
+      self.arch = arch # if training encoder
+      self.inp_shp = input_shape
+
+      
       super(VampNetwork, self).__init__(**kwargs)
 
   def build(self, input_shape):
-      print('INPUT SHAPE ', input_shape)
       if isinstance(input_shape, list):
         self.z_shape = input_shape[0]
         self.x_shape = input_shape[1]
@@ -486,35 +489,25 @@ class VampNetwork(Layer):
       for k in range(self.inputs):
         self.pseudo_inputs.append(PseudoInput(dim = self.x_shape[-1], init = self.pseudo_init))
       
-
-      #if self.encoder is not None:
-      #  self.model_layers = self.encoder.layers[:-2]
-      #  self.mu_layer = self.encoder.layers[-2]
-      #  self.logvar_layer = self.encoder.layers[-1]
-      #  
-      #  super(VampNetwork, self).build(input_shape) 
-      #  return 
-
-      #self.model = keras.models.Sequential()
-      for i in range(len(self.layers)):
-        layer_size = self.layers[i]
-        if self.arch == 'dense':
-          self.model_layers.append(Dense(layer_size, activation = self.activation, name = 'vamp_'+str(i)))
-        elif self.arch == 'alemi':
-          sizes = {0:5, 1:5, 2:5, 3:5, 4:7}
-          stride = {0:1, 1:2, 2:1, 3:2, 4:1}
-          self.model_layers.append(Conv2D(layer_size, sizes[i], activation = self.activation, strides= stride[i], padding = 'same' if i < len(self.layers)-1 else 'valid',
-                                          name = 'vamp_'+str(i)))
-        
-      #self.weight_layers.append(Dense(self.inputs, name = 'weights', activation = self.activation))
-      #self.mix_weights.append(SxConstant(init = 0.0001, latents = self.inputs))
-      # z outputs
-      self.mu_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_mean_vamp')
-      self.logvar_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_logvar_vamp')
+      if self.encoder_mu is None:
+        for i in range(len(self.layers)):
+          layer_size = self.layers[i]
+          if self.arch == 'dense':
+            self.model_layers.append(Dense(layer_size, activation = self.activation, name = 'vamp_'+str(i)))
+          elif self.arch == 'alemi' or self.arch == 'conv':
+            sizes = {0:5, 1:5, 2:5, 3:5, 4:7}
+            stride = {0:1, 1:2, 2:1, 3:2, 4:1}
+            self.model_layers.append(Conv2D(layer_size, sizes[i], activation = self.activation, strides= stride[i], padding = 'same' if i < len(self.layers)-1 else 'valid',
+                                         name = 'vamp_'+str(i)))
+        self.mu_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_mean_vamp')
+        self.logvar_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_logvar_vamp')
+      else:
+        # use already trained encoder
+        self.mu_layer = self.encoder_mu
+        self.logvar_layer = self.encoder_var
       
       super(VampNetwork, self).build(input_shape) 
 
-  # x.get_shape().as_list()[-1]  K.int_shape(x)
   def call(self, x):
     print("Input VAMP ", x)
     if isinstance(x, list):
@@ -523,6 +516,8 @@ class VampNetwork(Layer):
     else:
       self.z = x
     
+    self.z = K.batch_flatten(self.z)
+
     if self.create_network:
       pdfs = []
       #inp = Input(tensor = self.x)#self.x_shape[1:])
@@ -532,59 +527,30 @@ class VampNetwork(Layer):
       self.pseudos=[]
       for i in range(len(self.pseudo_inputs)):
         pseudo = self.pseudo_inputs[i](self.x)
-        if self.arch == 'alemi':
+        if self.arch == 'conv':
           pseudo = Reshape(self.inp_shp)(pseudo)
         self.pseudos.append(pseudo)
-      #if self.encoder is None:
-      self.pseudos = Concatenate(axis = 0)(self.pseudos)
-      print("PSEUDOS ", self.pseudos)
-      for j in range(len(self.model_layers)):
-        h = self.model_layers[j](self.pseudos if j == 0 else h)
-        #h = self.model_layers[j](pseudo if j==0 else h)
-      print("Z ", self.z)
-      print("mu ", self.mu_layer(h))
-      print("log var ", self.logvar_layer(h))
-      z_stack = K.repeat_elements(self.z, self.inputs, 0)
-      z_eval = [z_stack, self.mu_layer(h), self.logvar_layer(h)]  
-      ##else:
-      #mu = self.encoder(pseudo)
-      #var= self.encoder_var(pseudo)
-      #z_eval = [self.z, mu[0], mu[-1]]
-      
-      #pdf = losses.gaussian_pdf(z_eval, log = True, negative = True)
-      pdf = Lambda(losses.gaussian_pdf, arguments = {'log': True, 'negative': True})(z_eval)
-      print('pdfs ', pdf)
-      avg = Lambda(lambda x: K.mean(x ,axis =0, keepdims = True))(pdf)
-      #pdfs.append(pdf)
-      #avg = Average()(pdfs)
-      
 
-      #pdfs.append(Lambda(losses.gaussian_pdf, arguments = {'log': True, 'negative': True})(z_eval))
-      #self.mix_weights = self.mix_weights[i](self.x)
-      
-      #print("PDFS len ", len(pdfs), ' e.g. ',  pdfs[-1])
-      #print("Gaussian pdf inputs: ", z_eval)
-      # print("weighted average ", self.mix_weights)
-      
-      #mix = True
-      #if mix:
-      #  avg = Dot(0)([self.mix_weights, pdfs])
-      #else:
-      
-      
-      #avg = K.sum(tf.multiply(self.mix_weights, pdfs),axis = -1)
-      use_model =  False
-      if use_model:
-        outputs = [avg]
-        #dimsum = Lambda(losses.dim_sum_one, name='vamp_prior')(avg)
-        #outputs = [dimsum]
-        self.model = Model(inputs = [inp, inp2], outputs = outputs)
-        #print(self.model.summary())
-        self.model.compile(optimizer = Adam(lr=self.lr), loss = [losses.dim_sum])
-        self.create_network = False
-        return self.model([self.x, self.z])#([self.x, self.z])#self.model([self.x, self.z])    
+      self.pseudos = Concatenate(axis = 0)(self.pseudos)
+
+      if self.encoder_mu is None:
+        h = self.pseudos
+        for j in range(len(self.model_layers)):
+            h = self.model_layers[j](h)
+        mu = K.batch_flatten(self.mu_layer(h))
+        var = K.batch_flatten(self.logvar_layer(h))
       else:
-        return avg
+        mu = K.batch_flatten(self.mu_layer(self.pseudos))
+        var = K.batch_flatten(self.logvar_layer(self.pseudos))
+
+
+      z_eval = [K.expand_dims(self.z,0), K.expand_dims(mu,1), K.expand_dims(var,1)]
+      
+      # eval on 1 x batch x z_dim vs. pseudos x 1 x z_dim, then average over pseudos
+      pdf = Lambda(losses.gaussian_pdf, arguments = {'log': True, 'negative': True})(z_eval)      
+      avg = Lambda(lambda x: K.mean(x ,axis =0, keepdims = True))(pdf)
+      
+      return avg
         
 
 

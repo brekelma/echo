@@ -124,9 +124,14 @@ class NoiseModel(Model):
 		self.recon_true = self.input_tensor # Lambda(lambda y : y, name = 'x_true')(x)
    
 		self.encoder_layers = self._build_architecture([self.input], encoder = True)
-		#self.encoder_model = keras.models.Model(inputs = self.input, outputs = self.encoder_layers[-1]['act'])
+		
+		self.encoder_model = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
+		
+		self.encoder_mu = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][0])
+		self.encoder_var = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][-1])
+		
 		self.decoder_layers = self._build_architecture(self.encoder_layers[-1]['act'], encoder = False)
-		#self.decoder_model = keras.models.Model(input = self.encoder_layers[-1]['act'], outputs = self.decoder_layers[-1]['act'])
+		#self.decoder_model = keras.models.Model(inputs = self.encoder_layers[-1]['act'], outputs = self.decoder_layers[-1]['act'])
 
 		self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
 
@@ -449,7 +454,9 @@ class NoiseModel(Model):
 				elif loss.type in ['vamp']:
 					# initialize VampPrior with the data mean
 					loss.loss_kwargs['init'] = np.mean(self.dataset.x_train.reshape(-1, self.dataset.dim), axis = 0)
-				
+					if not any([(isinstance(_loss, dict) and 'iaf' in _loss['type']) or (isinstance(_loss, Loss) and 'iaf' in _loss.type) for _loss in loss_list]):
+						loss.loss_kwargs['encoder_mu'] = self.encoder_mu
+						loss.loss_kwargs['encoder_var'] = self.encoder_var
 				try:
 					self.loss_functions.append(loss.make_function())
 				except:
