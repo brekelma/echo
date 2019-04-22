@@ -190,7 +190,8 @@ class NoiseModel(Model):
                 self.pickle_dump()
    
 
-        def pickle_dump(self, ):
+        def pickle_dump(self):
+                stats = {}
                 for k in self.hist.keys():
                         stats[k] = self.hist[k]
         
