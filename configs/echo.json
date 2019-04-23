@@ -2,7 +2,7 @@
 	"epochs": 200,
 	"batch": 100,
 	"optimizer": "Adam",
-    "optimizer_params": {},
+        "optimizer_params": {},
 	"lr": "alemi_lr_sched",
 	"input_shape": [28, 28, 1],
 	"latent_dims": [32, 32, 64, 64, 256, 32],
@@ -74,16 +74,16 @@
 			"encoder": true,
 			"type": "echo", 
 			"k": 1,
-			        "ayush": true,
 			"layer_kwargs":{
 				"d_max": 100,
 				"noise": "additive",
-				"clip": 0.8369,
+				"clip": 0.8359,
 			        "init": 1.0,
 			        "bias":0.0,
 			        "echomc": false,
 			        "nomc": true,
 			        "replace": false,
+			    "calc_log": true,
 			    "mean_shift": false,
 			    "fx_act": "model_utils.activations.tanh64",    
 			    "sx_act": "tensorflow.math.log_sigmoid"
@@ -187,7 +187,10 @@
 			"type": "echo",
 			"layer": -1, 
 			"encoder": true,
-			"weight": 1.0
+			"weight": 1.0,
+			    "loss_kwargs":{
+				"calc_log": true
+			    }
 			}
 		],
 	"beta": 1.0,

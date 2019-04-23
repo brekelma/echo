@@ -125,8 +125,13 @@ class NoiseModel(Model):
    
                 self.encoder_layers = self._build_architecture([self.input], encoder = True)
                 
-                self.encoder_model = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
                 
+                
+                
+                
+                
+                #self.encoder_model = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
+
                 self.encoder_mu = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][0])
                 self.encoder_var = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][-1])
                 
@@ -181,12 +186,12 @@ class NoiseModel(Model):
 
                 self.fit_time = time.time() - tic
 
-                np.random.seed(0)
+                np.random.seed(1)
                 np.random.shuffle(self.dataset_clean.x_test)
                 self.test_eval(x_test = self.dataset_clean.x_test) 
 
                 #self.decoder_model.save(self.filename+'_decoder.hdf5')
-                self.encoder_model.save_weights(self.filename+"_encoder_weights.hdf5")
+                self.model.save_weights(self.filename+"_model_weights.hdf5")
                 self.pickle_dump()
    
 
@@ -524,18 +529,16 @@ class NoiseModel(Model):
                                                 outputs.extend(layers[lyr][output_inputs[j]][0])
                                         # not handling 'addl' tensors
 
-                                
                                 try:
-                                        print(outputs[j].name)
-                                        print(K.int_shape(outputs[j]))
-                                        for j in range(len(outputs)):
-                                                outputs[j] = Flatten(name = 'flatten_'+outputs[j].name.split("/")[0]+'_'+str(i))(outputs[j]) if len(list(outputs[j].get_shape())) > 2 else outputs[j]
+                                         for j in range(len(outputs)):
+                                                 outputs[j] = Flatten(name = 'flatten_'+outputs[j].name.split("/")[0]+'_'+str(i))(outputs[j]) if len(list(outputs[j].get_shape())) > 2 else outputs[j]
                                 except Exception as e:
                                         print()
                                         print("EXCEPTION ", e)
                                         for j in range(len(outputs)):
                                                 for k in range(len(outputs[j])):
                                                         outputs[j][k] = Flatten(name = 'flatten_'+outputs[j][k].name.split("/")[0]+'_'+str(i))(outputs[j][k]) if len(list(outputs[j][k].get_shape())) > 2 else outputs[j][k]
+
                                 
                                 
                                 

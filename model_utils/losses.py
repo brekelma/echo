@@ -135,14 +135,17 @@ def gaussian_pdf(inputs, log = False, negative = True):
     return -res if negative else res
 
 
-def echo_loss(inputs, clip= 0.8359, calc_log = True, plus_sx = True, **kwargs):                                                                                                                                                  
+def echo_loss(inputs, clip= 0.8359, calc_log = True, plus_sx = True, multiplicative = False, **kwargs):                                                                                                                                                  
     if isinstance(inputs, list):                                                                                                                                          
+        z_mean = inputs[0]
         z_scale = inputs[-1]                                                                                                                                 
     else:
         z_scale = inputs
-
+   
     # calc_log indicates whether z_scale is already in log terms
+    
     mi = -K.log(K.abs(clip*z_scale)+K.epsilon()) if not calc_log else -(tf.log(clip) + (z_scale if plus_sx else -z_scale))
+    
     return mi
 
 

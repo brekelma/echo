@@ -132,6 +132,8 @@ def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
             inds.append(list(enumerate(np.random.choice(batch_size, size = d_max, replace = True))))
         return inds
 
+
+
 def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, echo_mc = False,
                 replace=False, fx_clip=None, plus_sx=True, calc_log=True, return_noise=False, **kwargs):
     # kwargs unused
@@ -147,12 +149,12 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     else:
         fx = inputs
 
-    # TO DO : CALC_LOG currently determines whether to do log space calculations AND whether sx is a log
+    # TO DO : CALC_LOG currently determines both whether to do log space calculations AND whether sx is a log
+ 
+    fx_shape = fx.get_shape()
+    sx_shape = sx.get_shape()
 
-    fx_shape = tf.shape(fx)
-    sx_shape = tf.shape(sx)
-    
-    
+
     if clip is None:
     # clip is multiplied times s(x) to ensure that last sampled term:
     #   (clip^d_max)*f(x) < machine precision 
@@ -166,7 +168,9 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     
 
     if not calc_log:
-        raise ValueError('calc_log=False is not supported; sx has to be log_sigmoid')
+        sx = tf.multiply(clip,sx)
+        sx = tf.where(tf.abs(sx) < K.epsilon(), K.epsilon()*tf.sign(sx), sx)
+    #raise ValueError('calc_log=False is not supported; sx has to be log_sigmoid')
     else:
         # plus_sx based on activation for sx = s(x):
         #   True for log_sigmoid
@@ -181,9 +185,18 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     z_dim = K.int_shape(fx)[-1]
     
     if replace: # replace doesn't set batch size (using permute_neighbor_indices does)
+        sx = K.batch_flatten(sx) if len(sx_shape) > 2 else sx 
+        fx = K.batch_flatten(fx) if len(fx_shape) > 2 else fx 
         inds = K.reshape(random_indices(batch, d_max), (-1, 1))
         select_sx = gather_nd_reshape(sx, inds, (-1, d_max, z_dim))
         select_fx = gather_nd_reshape(fx, inds, (-1, d_max, z_dim))
+
+        if len(sx_shape)>2:
+          select_sx = K.expand_dims(K.expand_dims(select_sx, 2), 2)
+          sx = K.expand_dims(K.expand_dims(sx, 1),1)
+        if len(fx_shape)>2:
+          select_fx = K.expand_dims(K.expand_dims(select_fx, 2), 2)
+          fx = K.expand_dims(K.expand_dims(fx, 1),1)
 
     else:
         # batch x batch x z_dim 
@@ -208,18 +221,20 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     
     # calculates S(x0)S(x1)...S(x_l)*f(x_(l+1))
     sx_echoes = tf.exp(sx_echoes) if calc_log else sx_echoes 
-    fx_sx_echoes = tf.multiply(select_fx, sx_echoes)
-
+    fx_sx_echoes = tf.multiply(select_fx, sx_echoes) 
+    
     # performs the sum over dmax terms to calculate noise
-    noise = tf.reduce_sum(fx_sx_echoes, axis = 1)
+    noise = tf.reduce_sum(fx_sx_echoes, axis = 1) 
     
     
-    if multiplicative:
+    #if multiplicative:
         # unused in paper, not extensively tested
-        output = tf.exp(tf.log(fx) + (tf.log(sx) if not calc_log else sx) + tf.log(noise))
-    else:
-        sx = sx if not calc_log else tf.exp(sx) 
-        output = fx + tf.multiply(sx, noise) 
+        #sx = sx if not calc_log else tf.exp(sx) 
+        #output = tf.multiply(fx, tf.multiply(sx, noise))
+        
+    #else:
+    sx = sx if not calc_log else tf.exp(sx) 
+    output = fx + tf.multiply(sx, noise) 
 
     return output if not return_noise else noise
 
