@@ -26,76 +26,6 @@ tfd = tfp.distributions
 tfb = tfp.bijectors
 #import IPython
 
-
-def list_id(x, name = None):
-  if isinstance(x, list):
-    if isinstance(x[0], list):
-      return x[0]
-    else:
-      return x
-  else:
-    return x
-  
-
-def shuffle_batch(x, numpy = True, batch_size = 100):
-  # only works for 2d / flattened tensors
-  if isinstance(x, np.ndarray):
-    x = K.variable(x)
-    x = K.Flatten()(x)
-  batch = x.get_shape().as_list()[0] #K.int_shape(x)[0] 
-  m = x.get_shape().as_list()[-1] #K.int_shape(x)[-1]
-  
-  if batch is None:
-    batch = batch_size
-  
-  def shuffle_with_return(y):
-    zz = copy(y)
-    for i in range(zz.shape[-1]):
-      np.random.shuffle(zz[:,i])
-    return zz
-  
-  perm_matrix = np.array([[[row, j] for row in shuffle_with_return(np.arange(batch))] for j in range(m)])
-  
-  return tf.transpose(tf.gather_nd(x, perm_matrix)) 
-
-def vae_sample(inputs, std = 1.0, return_noise = False, try_mvn = False):
-  # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
-  z_mean, z_noise = inputs
-  
-  try:
-    z_score = K.random_normal(shape=(z_mean._keras_shape[-1],),
-                                mean=0.,
-                                stddev=std)
-  except:
-    try:
-      z_score = K.random_normal(shape=(z_mean.get_shape().as_list()[-1],),
-                                mean=0.,
-                                stddev=std)
-    except:
-      z_score = K.random_normal(shape=(z_mean.shape[-1],),
-                                mean=0.,
-                                stddev=std)
-  return z_mean + K.exp(z_noise / 2) * z_score if not return_noise else K.expand_dims(z_score, 0)
-    
-
-def vae_np(inputs, std = 1.0):
-  z_mean, z_noise = inputs
-  #if not hasattr(z_mean, '_keras_shape'):
-  #  z_mean = K.variable(z_mean)
-  z_score = np.random.normal(size = z_mean.shape)
-  return z_mean + np.exp(z_noise / 2) * z_score
-
-def ido_sample(inputs):
-  # reparametrization trick in log normal space (i.e. multiplicative noise)
-  z_mean, z_noise = inputs
-  std = 1.0
-  z_score = K.random_normal(shape=(z_mean._keras_shape[-1],),
-                                  mean=0.,
-                                  stddev=std)
-    
-  return K.exp(z_mean + K.exp(z_noise / 2) * z_score)
- 
-
 # sampling with replacement, without setting batch dimension
 def random_indices(n, d):
     return tf.random.uniform((n * d,), minval=0, maxval=n, dtype=tf.int32)
@@ -237,6 +167,76 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     output = fx + tf.multiply(sx, noise) 
 
     return output if not return_noise else noise
+
+  
+def list_id(x, name = None):
+  if isinstance(x, list):
+    if isinstance(x[0], list):
+      return x[0]
+    else:
+      return x
+  else:
+    return x
+  
+
+def shuffle_batch(x, numpy = True, batch_size = 100):
+  # only works for 2d / flattened tensors
+  if isinstance(x, np.ndarray):
+    x = K.variable(x)
+    x = K.Flatten()(x)
+  batch = x.get_shape().as_list()[0] #K.int_shape(x)[0] 
+  m = x.get_shape().as_list()[-1] #K.int_shape(x)[-1]
+  
+  if batch is None:
+    batch = batch_size
+  
+  def shuffle_with_return(y):
+    zz = copy(y)
+    for i in range(zz.shape[-1]):
+      np.random.shuffle(zz[:,i])
+    return zz
+  
+  perm_matrix = np.array([[[row, j] for row in shuffle_with_return(np.arange(batch))] for j in range(m)])
+  
+  return tf.transpose(tf.gather_nd(x, perm_matrix)) 
+
+def vae_sample(inputs, std = 1.0, return_noise = False, try_mvn = False):
+  # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
+  z_mean, z_noise = inputs
+  
+  try:
+    z_score = K.random_normal(shape=(z_mean._keras_shape[-1],),
+                                mean=0.,
+                                stddev=std)
+  except:
+    try:
+      z_score = K.random_normal(shape=(z_mean.get_shape().as_list()[-1],),
+                                mean=0.,
+                                stddev=std)
+    except:
+      z_score = K.random_normal(shape=(z_mean.shape[-1],),
+                                mean=0.,
+                                stddev=std)
+  return z_mean + K.exp(z_noise / 2) * z_score if not return_noise else K.expand_dims(z_score, 0)
+    
+
+def vae_np(inputs, std = 1.0):
+  z_mean, z_noise = inputs
+  #if not hasattr(z_mean, '_keras_shape'):
+  #  z_mean = K.variable(z_mean)
+  z_score = np.random.normal(size = z_mean.shape)
+  return z_mean + np.exp(z_noise / 2) * z_score
+
+def ido_sample(inputs):
+  # reparametrization trick in log normal space (i.e. multiplicative noise)
+  z_mean, z_noise = inputs
+  std = 1.0
+  z_score = K.random_normal(shape=(z_mean._keras_shape[-1],),
+                                  mean=0.,
+                                  stddev=std)
+    
+  return K.exp(z_mean + K.exp(z_noise / 2) * z_score)
+ 
 
 
 class MAF(Layer):
