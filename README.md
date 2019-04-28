@@ -10,6 +10,17 @@ USC Information Sciences Institute
 
 Echo noise is flexible, data-driven alternative to Gaussian noise that admits an simple, exact expression for mutual information by construction.  Applied in the autoencoder setting, we show that regularizing with I(X:Z) corresponds to the optimal choice of prior in the Evidence Lower Bound and leads to significant improvements over VAEs.  
 
+## Echo Noise
+
+Echo is implemented using a similar setup to VAEs.  You can use the Echo functions in ```layers.py``` and ```losses.py``` as follows: 
+```
+z_mean = Dense(latent_dim, activation = model_utils.activations.tanh64)(h)
+z_log_scale = Dense(latent_dim, activation = tf.math.log_sigmoid)(h)
+z_activation = Lambda(model_utils.layers.echo_sample)([z_mean, z_log_scale])
+echo_loss = Lambda(model_utils.losses.echo_loss)([z_log_scale])
+```
+We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None. This means the model cannot accommodate different batch sizes (e.g. if ```data.shape[0] % batch > 0```) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
+
 
 ## Instructions:  
 ```
@@ -17,16 +28,6 @@ python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --datase
 ```
 Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter ```beta```, which is multiplied by the rate term, or specify the dataset using ```'binary_mnist'```, ```'omniglot'```, or ```'fmnist'.``` . Analysis tools are mostly omitted for now, but the model loss training history is saved in a pickle file.
 
-## Echo Noise
-
-Outside of the code given here, Echo can be implemented using a similar setup to VAEs
-```
-z_mean = Dense(32, activation = model_utils.activations.tanh64)(h)
-z_log_scale = Dense(32, activation = tf.math.log_sigmoid)(h)
-z_activation = Lambda(model_utils.layers.echo_sample)([z_mean, z_log_scale])
-echo_loss = Lambda(model_utils.layers.echo_loss)([z_log_scale])
-```
-We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None. This means the model cannot accommodate different batch sizes (e.g. if ```data.shape[0] % batch > 0```) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
 
 
 ## Comparison Methods
