@@ -3,9 +3,12 @@
 Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/1904.07199
    
 ```
-Exact Rate-Distortion in Autoencoders via Echo Noise 
-Rob Brekelmans, Daniel Moyer, Aram Galstyan, Greg Ver Steeg
-USC Information Sciences Institute
+@article{brekelmans2019exact,
+  title={Exact Rate-Distortion in Autoencoders via Echo Noise},
+  author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Steeg, Greg Ver},
+  journal={arXiv preprint arXiv:1904.07199},
+  year={2019}
+}
 ```
 
 Echo noise is flexible, data-driven alternative to Gaussian noise that admits an simple, exact expression for mutual information by construction.  Applied in the autoencoder setting, we show that regularizing with I(X:Z) corresponds to the optimal choice of prior in the Evidence Lower Bound and leads to significant improvements over VAEs.  
