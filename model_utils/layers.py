@@ -156,15 +156,21 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     # performs the sum over dmax terms to calculate noise
     noise = tf.reduce_sum(fx_sx_echoes, axis = 1) 
     
+    if multiplicative:
+        # unused in paper, not extensively tested                                                                                                                                
+      sx = sx if not calc_log else tf.exp(sx)
+      output = tf.exp(fx + tf.multiply(sx, noise))#tf.multiply(fx, tf.multiply(sx, noise))                                                                                       
+    else:
+      sx = sx if not calc_log else tf.exp(sx)
+      output = fx + tf.multiply(sx, noise)
+
     
-    #if multiplicative:
-        # unused in paper, not extensively tested
-        #sx = sx if not calc_log else tf.exp(sx) 
-        #output = tf.multiply(fx, tf.multiply(sx, noise))
-        
-    #else:
     sx = sx if not calc_log else tf.exp(sx) 
-    output = fx + tf.multiply(sx, noise) 
+    
+    if multiplicative: # log z according to echo
+        output = tf.exp(fx + tf.multiply(sx, noise))
+    else:
+        output = fx + tf.multiply(sx, noise) 
 
     return output if not return_noise else noise
 
