@@ -5,7 +5,7 @@ Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/190
 ```
 @article{brekelmans2019exact,
   title={Exact Rate-Distortion in Autoencoders via Echo Noise},
-  author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Steeg, Greg Ver},
+  author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Ver Steeg, Greg},
   journal={arXiv preprint arXiv:1904.07199},
   year={2019}
 }
