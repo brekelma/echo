@@ -186,7 +186,7 @@ class NoiseModel(Model):
 
                 self.fit_time = time.time() - tic
 
-                np.random.seed(1)
+                np.random.seed(42)
                 np.random.shuffle(self.dataset_clean.x_test)
                 self.test_eval(x_test = self.dataset_clean.x_test) 
 
