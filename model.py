@@ -28,7 +28,7 @@ from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate,
 from keras.layers import Activation, BatchNormalization, Lambda, Reshape 
 import keras.optimizers
 from keras.callbacks import Callback, TensorBoard, TerminateOnNaN
-#from callbacks import ZeroAnneal
+from model_utils.callbacks import ZeroAnneal
 from model_utils.callbacks import MyLearningRateScheduler as LearningRateScheduler
 #from keras_normalized_optimizers.optimizer import NormalizedOptimizer
 
@@ -41,11 +41,12 @@ class Model(object):
                         self.__setattr__(key, hyper_params[key])
 
 class NoiseModel(Model):
-        def __init__(self, dataset, config = None, filename = 'latest_unnamed_model', verbose = True, args_dict = {}):
+        def __init__(self, dataset, config = None, filename = 'latest_unnamed_model', seed = 12, verbose = True, args_dict = {}):
                 self.filename = filename
                 self.verbose = verbose
                 self.input_shape = None
                 self.dataset = dataset
+                self.seed = seed
                 
 
                 self.args = {
@@ -143,7 +144,7 @@ class NoiseModel(Model):
 
                 self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
 
-                #self.model_loss_weights = [tf.Variable(lw, dtype = tf.float32, trainable = False) for lw in self.model_loss_weights]
+                self.model_loss_weights = [tf.Variable(lw, dtype = tf.float32, trainable = False) for lw in self.model_loss_weights]
                 
                 #if not self.lagrangian_fit: # OMITTED
                 self.model.compile(optimizer = self.optimizer, loss = self.model_losses, loss_weights = self.model_loss_weights) # metrics?
@@ -186,9 +187,22 @@ class NoiseModel(Model):
 
                 self.fit_time = time.time() - tic
 
-                np.random.seed(1)
+                #np.random.seed(1)
+                np.random.seed(self.seed)
                 np.random.shuffle(self.dataset_clean.x_test)
                 self.test_eval(x_test = self.dataset_clean.x_test) 
+                
+
+                # get intermediate echo layers
+                try:
+                        self.z_fx = self.get_layer(self.dataset_clean.x_test, name = 'z_mean')
+                        self.z_sx = self.get_layer(self.dataset_clean.x_test, name = 'var')
+                        self.z_act = self.get_layer(self.dataset_clean.x_test, name = 'act')
+                except Exception as e:
+                        print("*"*50)
+                        print("Exception get layer: ", e)
+                        print("*"*50)
+                        #self.get_layer(self.dataset_clean.x_test, name = 'fx')
 
                 #self.decoder_model.save(self.filename+'_decoder.hdf5')
                 self.model.save_weights(self.filename+"_model_weights.hdf5")
@@ -206,6 +220,15 @@ class NoiseModel(Model):
                 except:
                         pass
                 
+                try:
+                        stats['z_fx']  = self.z_fx
+                        stats['z_sx'] = self.z_sx
+                        stats['z_act'] = self.z_act
+                except Exception as e:
+                        print("*"*50)
+                        print('pickle dumping activations ', e)
+                        print('*'*50)
+
                 with open(str(self.filename+".pickle"), "wb") as fle:
                         pickle.dump(stats, fle)
                         
@@ -229,6 +252,30 @@ class NoiseModel(Model):
                         self.test_results[self.model.metrics_names[i]] = loss_list[i]
                         print("Test loss ", self.model.metrics_names[i], " : ", loss_list[i])
 
+
+        def get_layer(self, x, name = 'act'):
+                for i in range(len(self.model.layers)):
+                        if name in self.model.layers[i].name:
+                                lyr_ind = i
+                                break
+                print("INPUTS ", self.model.inputs)
+                oputs = [self.model.layers[i].get_output_at(0)]
+                print("proposed outputs ", oputs)
+                new_m = keras.models.Model(inputs = self.model.inputs, outputs = oputs)
+                
+                try:
+                        loss_list = new_m.predict(x, batch_size = self.batch)
+                except:
+                        rounded = x.shape[0] - x.shape[0] % self.batch
+                        loss_list = new_m.predict(x[:rounded,...], batch_size = self.batch)
+                print('get layer ', name, ' : ', type(loss_list))
+                
+                try:
+                        print(loss_list.shape)
+                except:
+                        print([ll.shape for ll in loss_list])
+                return loss_list
+                
 
 
         def _build_architecture(self, input_list = None, encoder = True):
@@ -385,8 +432,13 @@ class NoiseModel(Model):
                                                 if isinstance(current_call, list):
                                                         current = current_call[k] if len(current_call) > 1 else current_call[0]
                                                 
+                                                if layer.data_input:
+                                                        print("Layer ", layer.type, ' data input TRUE:  current call ', current)
+                                                        current = [self.input, current]
+                                                        print('new current ', current)
+ 
                                                 act = act_lyr(current) # if not echo_flag else act_lyr(current)[0]
-
+                                                
                                                 try:
                                                         layers_list[layer_ind]['act'].append(act)
                                                         if mode == 1 and loop == 'noise': 
@@ -414,11 +466,15 @@ class NoiseModel(Model):
                                                                 for addl in addl_lyr:
                                                                         a = addl(current)
                                                           
-                                                                try:
-                                                                        layers_list[layer_ind]['addl'].append(a)
-                                                                except Exception as e:
-                                                                        print("Addl exception ", e)
-                                                                        layers_list[-1]['addl'].append(a)
+                                                                        try:
+                                                                                layers_list[layer_ind]['addl'].append(a)
+                                                                        except Exception as e:
+                                                                                print("Addl exception ", e)
+                                                                                layers_list[-1]['addl'].append(a)
+                                                                print()
+                                                                print("APPENDING to addl")
+                                                                print(layers_list[layer_ind]['addl'])
+                                                                print()
                                                         else:
                                                                 a = addl_lyr(current)
                                                                 try:
@@ -475,9 +531,8 @@ class NoiseModel(Model):
                                 elif loss.type in ['vamp']:
                                         # initialize VampPrior with the data mean
                                         loss.loss_kwargs['init'] = np.mean(self.dataset.x_train.reshape(-1, self.dataset.dim), axis = 0)
-                                        if not any([(isinstance(_loss, dict) and 'iaf' in _loss['type']) or (isinstance(_loss, Loss) and 'iaf' in _loss.type) for _loss in loss_list]):
-                                                loss.loss_kwargs['encoder_mu'] = self.encoder_mu
-                                                loss.loss_kwargs['encoder_var'] = self.encoder_var
+                                        loss.loss_kwargs['encoder_mu'] = self.encoder_mu
+                                        loss.loss_kwargs['encoder_var'] = self.encoder_var
                                 try:
                                         self.loss_functions.append(loss.make_function())
                                 except:
@@ -497,7 +552,15 @@ class NoiseModel(Model):
 
                                         
                                         if 'act' in layer_inputs[j] or 'addl' in layer_inputs[j]:
-                                                outputs.extend(layers[lyr][layer_inputs[j]])
+                                                if 'list' in layer_inputs[j]: #isinstance(layers[lyr][layer_inputs[j]], list): 
+                                                        print()
+                                                        print("Appending ", layer_inputs[j])
+                                                        print(layers[lyr])
+                                                        print()
+                                                        outputs.append(layers[lyr][layer_inputs[j].split("_")[0]])
+                                                else:
+                                                        outputs.extend(layers[lyr][layer_inputs[j]])
+                                                #outputs.extend(layers[lyr][layer_inputs[j]])
                                         elif 'stat' in layer_inputs[j]:
                                                 try:
                                                         # stat is a list of lists 
@@ -536,13 +599,37 @@ class NoiseModel(Model):
                                         print()
                                         print("EXCEPTION ", e)
                                         for j in range(len(outputs)):
+                                                if not isinstance(outputs[j], list):
+                                                        continue
+                                                
                                                 for k in range(len(outputs[j])):
-                                                        outputs[j][k] = Flatten(name = 'flatten_'+outputs[j][k].name.split("/")[0]+'_'+str(i))(outputs[j][k]) if len(list(outputs[j][k].get_shape())) > 2 else outputs[j][k]
+                                                        try:
+                                                                outputs[j][k] = Flatten(name = 'flatten_'+outputs[j][k].name.split("/")[0]+'_'+str(i))(outputs[j][k]) if len(list(outputs[j][k].get_shape())) > 2 else outputs[j][k]
+                                                        except:
+                                                                pass
 
                                 
                                 
                                 
-                                self.model_outputs.append(self.loss_functions[-1](outputs))
+                                try:
+                                        print()
+                                        print("Model loss call ", loss.type)
+                                        print(outputs)
+                                        print()
+                                        self.model_outputs.append(self.loss_functions[-1](outputs))
+                                except:
+                                        print()
+                                        print()
+                                        print("TEMP OUTPUTS before")
+                                        temp_outputs = copy(outputs)
+                                        print(temp_outputs)
+                                        if 'vamp' in loss.type:
+                                                temp_outputs[0] = outputs[0][-1]
+                                        else:
+                                                temp_outputs[0] = outputs[0][0]
+                                        print("Temp outputs for : ", loss.type, temp_outputs)
+                                        self.model_outputs.append(self.loss_functions[-1](temp_outputs))
+
                                 self.model_losses.append(losses.dim_sum)
                                 self.model_loss_weights.append(loss.get_loss_weight())
                                 try:
@@ -563,22 +650,8 @@ class NoiseModel(Model):
                 if self.lr_callback:
                         my_callbacks.append(LearningRateScheduler(self.lr))
                 my_callbacks.append(TerminateOnNaN())
-
+                
                 return my_callbacks
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
         def _decoder(self):
