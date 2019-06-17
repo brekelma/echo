@@ -110,11 +110,11 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     if echo_mc is not None:    
       # use mean centered fx for noise
       fx = fx - K.mean(fx, axis = 0, keepdims = True)
-
-    #batch_size = K.shape(fx)[0]
+        
     z_dim = K.int_shape(fx)[-1]
     
     if replace: # replace doesn't set batch size (using permute_neighbor_indices does)
+        batch = K.shape(fx)[0]
         sx = K.batch_flatten(sx) if len(sx_shape) > 2 else sx 
         fx = K.batch_flatten(fx) if len(fx_shape) > 2 else fx 
         inds = K.reshape(random_indices(batch, d_max), (-1, 1))
