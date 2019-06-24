@@ -40,10 +40,11 @@ The Echo noise equivalent implemented here is:
 z = echo_noise.echo_sample( [z_mean, z_log_scale] )
 ```
 Similarly, VAEs often calculate a KL divergence penalty based on
-```z_mean``` and ```z_log_scale```. The Echo noise penalty can be computed
+```z_mean``` and ```z_log_scale```. The Echo noise penalty, which is the
+mutual information `I(x,z)`, can be computed
 using:
 ```python
-echo_noise.echo_loss([z_log_scale])
+loss = ... + echo_noise.echo_loss([z_log_scale])
 ```
 A Keras version of this might look like the following:
 ```python
