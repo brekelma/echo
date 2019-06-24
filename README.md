@@ -15,13 +15,27 @@ Echo noise is flexible, data-driven alternative to Gaussian noise that admits an
 
 ## Echo Noise
 
-Echo is implemented using a similar setup to VAEs.  You can use the Echo functions in ```layers.py``` and ```losses.py``` as follows: 
+For easy inclusion in other projects, the Echo Noise functions are included
+in one all-in-one file, ```echo_noise.py```, which can be copied to a project
+and included directly, e.g.:
+```python
+import echo_noise
 ```
+
+These functions are also found in the experiments code,
+ ```model_utils/layers.py``` and ```model_utils/losses.py```.
+
+Echo is implemented using a similar setup to VAEs.
+The following illustrates the usage of the noise function (```echo_sample```)
+and the MI calculation (```echo_loss```), both of which are included in
+```echo_noise.py```:
+```python
 z_mean = Dense(latent_dim, activation = model_utils.activations.tanh64)(h)
 z_log_scale = Dense(latent_dim, activation = tf.math.log_sigmoid)(h)
-z_activation = Lambda(model_utils.layers.echo_sample)([z_mean, z_log_scale])
+z_activation = Lambda(ech.echo_sample)([z_mean, z_log_scale])
 echo_loss = Lambda(model_utils.losses.echo_loss)([z_log_scale])
 ```
+
 We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None. This means the model cannot accommodate different batch sizes (e.g. if ```data.shape[0] % batch > 0```) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
 
 
