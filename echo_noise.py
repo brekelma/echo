@@ -3,9 +3,9 @@ import keras.backend as K
 import numpy as np
 import tensorflow as tf 
 
-#
-# helper funcs
-#
+
+# helper functions
+
 
 # sampling with replacement, without setting batch dimension
 def random_indices(n, d):
@@ -96,8 +96,11 @@ def echo_sample(
     sx_shape = sx.get_shape()
 
 
-    # clip is multiplied times s(x) to ensure that last sampled term:
-    #   (clip^d_max)*f(x) < machine precision 
+    # clip is multiplied times s(x) to ensure that sum of truncated terms < machine precision 
+    # clip should be calculated numerically according to App C in paper
+    # M (r ^ dmax / 1-r ) < precision, SOLVE for r (clipping factor), with M = max magnitude of f(x)
+    
+    # calculation below is an approximation (ensuring only term d_max + 1 < precision)
     if clip is None:
         max_fx = fx_clip if fx_clip is not None else 1.0
         clip = (2**(-23)/max_fx)**(1.0/d_max)
@@ -192,21 +195,25 @@ def echo_sample(
 #
 # Parameters
 # ----------
-# inputs: tensor
+# inputs: tensor (or list of tensors [f(x), s(x)])
 #   The sigmoid outputs from an encoder (don't include the mean outputs).
 #
-# TODO: Rob, please explain where the clip number comes from. (DM)
+# clip : scales s(x) to ensure that sum of truncated terms < machine precision 
+#   clip should be calculated numerically according to App C in paper
+#   Solve for r:  M (r ^ dmax / 1-r ) < machine precision, with M = max magnitude of f(x)
 #
+# calc_log : bool whether inputs are in log space
+# plus_sx : bool whether inputs measure s(x) (vs. -s(x) if parametrized with softplus, e.g.)
+
 def echo_loss(inputs,
     clip= 0.8359, calc_log = True, plus_sx = True, multiplicative = False,
     **kwargs):
+    
     if isinstance(inputs, list):
         z_mean = inputs[0]
         z_scale = inputs[-1]
     else:
         z_scale = inputs
-
-    # calc_log indicates whether z_scale is already in log terms
 
     mi = -K.log(K.abs(clip*z_scale)+K.epsilon()) if not calc_log else -(tf.log(clip) + (z_scale if plus_sx else -z_scale))
     
