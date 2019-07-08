@@ -18,6 +18,7 @@ class Layer(object):
 			'k': 1, # e.g. iwae
 			'add_loss': True,
 			'activation': None, # custom activation (can be an import: module.___)
+                        'data_input': False,
 			'density_estimator': None,
 			'noise_estimator': None,
 			'tc_estimator': None,

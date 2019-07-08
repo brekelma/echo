@@ -41,6 +41,7 @@ if args.per_label is not None:
 
 m = model.NoiseModel(d, config = config, filename = args.filename, verbose = args.verbose)
 
+
 if args.noise is not None:
 	if args.noise == 'multiplicative':
 		m.layers[0]['layer_kwargs']['multiplicative'] = True

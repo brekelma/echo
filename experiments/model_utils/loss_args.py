@@ -4,7 +4,7 @@ import importlib
 import tensorflow as tf
 import model_utils.losses as l
 import model_utils.layers as layers
-import model
+#import model
 from keras.layers import Lambda
 import keras.models
 

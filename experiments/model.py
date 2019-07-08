@@ -21,7 +21,7 @@ import model_utils.layer_args as layer_args
 from model_utils.layers import IAF #Beta, MADE, MADE_network, IAF, Echo
 import model_utils.losses as losses
 from model_utils.loss_args import Loss
-import model_utils.sampling as sampling
+
 
 import keras.backend as K
 from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 

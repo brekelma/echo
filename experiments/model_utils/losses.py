@@ -7,7 +7,7 @@ import keras.losses
 import keras.models as km
 from keras.layers import Lambda, Concatenate, average, concatenate, add
 from keras.callbacks import Callback, TensorBoard
-import model_utils.layers
+
 from functools import partial
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -143,7 +143,9 @@ def echo_loss(inputs, clip= 0.8359, calc_log = True, plus_sx = True, multiplicat
         z_scale = inputs
    
     # calc_log indicates whether z_scale is already in log terms
-    
+    print("*"*50)
+    print("INPUTS FOR ECHO NOISE ", inputs)
+    print("*"*50)
     mi = -K.log(K.abs(clip*z_scale)+K.epsilon()) if not calc_log else -(tf.log(clip) + (z_scale if plus_sx else -z_scale))
     
     return mi

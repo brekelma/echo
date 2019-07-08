@@ -35,6 +35,76 @@ def gather_nd_reshape(t, indices, final_shape):
     return K.reshape(h, final_shape)
 
 
+def indices_without_replacement(batch_size, d_max=-1, replace = False, pop = True, use_old = False):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
+      """
+      try:
+          if d_max < 0:
+              d_max = batch_size + d_max
+      except:
+          pass
+      
+      off = 0 if pop else 1
+      
+      #if tf.contrib.framework.is_tensor(batch_size) and not use_old:# replace:
+      i = tf.constant(0)
+
+      try:
+          d = tf.cond(tf.equal(batch_size,d_max), lambda: tf.constant(d_max-1), lambda: tf.constant(d_max)) #tf.constant(d_max-1 if tf.equal(batch_size, d_max) else d_max)
+      except:
+          d = tf.cond(tf.equal(batch_size,d_max), lambda: tf.add(d_max, -1), lambda: tf.add(d_max, 0))
+    
+      cond = lambda b, i: tf.less(tf.shape(i)[0], b)
+
+      batch_range = tf.range(batch_size)
+      #batch_range = tf.where(tf.equal(batch_range, i), tf.zeros_like(batch_range), batch_range)
+      if pop:
+          batch_mask = tf.where(tf.equal(batch_range, i), tf.zeros_like(batch_range), tf.ones_like(batch_range))
+          batch_range = tf.boolean_mask(batch_range, batch_mask)
+         
+      batch_shuff = tf.random.shuffle(batch_range)
+      dmax_slice = batch_shuff[:d_max]
+      
+      dmax_range = tf.range(batch_size)[:d_max-1+off]
+      dmax_enumerated = tf.concat([tf.expand_dims(dmax_range,1), tf.expand_dims(dmax_slice,1)], axis = -1)      
+      inds = tf.expand_dims(dmax_enumerated,0)
+      
+
+      def loop_call(batch, inds):#inputs):
+          i = tf.shape(inds)[0] #tf.add(i,1)
+          batch_range = tf.range(batch)
+          
+          if pop:
+              batch_mask = tf.where(tf.equal(batch_range, i), tf.zeros_like(batch_range), tf.ones_like(batch_range))
+              batch_range = tf.boolean_mask(batch_range, batch_mask)
+          
+          # prepare enumerated list of indices (batch, dmax, 2) 
+          #     where (i,j,:) specifies 2d index to find j_th echo sample for training example i
+          batch_shuff = tf.random.shuffle(batch_range)
+          dmax_slice = batch_shuff[:d_max]
+          dmax_range = tf.range(batch_size)[:d_max-1+off]
+          dmax_enumerated = tf.concat([tf.expand_dims(dmax_range,1), tf.expand_dims(dmax_slice,1)], axis = -1)
+          inds = tf.concat([inds, tf.expand_dims(dmax_enumerated, 0)], axis = 0)
+          
+
+          return [batch, inds]
+
+
+      batch, inds = tf.while_loop(cond, loop_call, (batch_size, inds), 
+          shape_invariants = (batch_size.get_shape(), tf.TensorShape([None,None,2])), 
+          swap_memory = True, return_same_structure = True) 
+      
+      return inds
+
+
+
+# OLD FUNCTION which sets the batch size, but may be more intuitive
 def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters
@@ -83,7 +153,9 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
  
     fx_shape = fx.get_shape()
     sx_shape = sx.get_shape()
-
+    z_dim = K.int_shape(fx)[-1]
+    batch_size = batch
+    batch = K.shape(fx)[0]
 
     if clip is None:
     # clip is multiplied times s(x) to ensure that last sampled term:
@@ -107,14 +179,13 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
         #   False for softplus
         sx = tf.log(clip) + (-1*sx if not plus_sx else sx)
     
-    if echo_mc is not None:    
+    #if echo_mc is not None and echo_mc:    
       # use mean centered fx for noise
-      fx = fx - K.mean(fx, axis = 0, keepdims = True)
+    #  fx = fx - K.mean(fx, axis = 0, keepdims = True)
         
-    z_dim = K.int_shape(fx)[-1]
-    
+
+
     if replace: # replace doesn't set batch size (using permute_neighbor_indices does)
-        batch = K.shape(fx)[0]
         sx = K.batch_flatten(sx) if len(sx_shape) > 2 else sx 
         fx = K.batch_flatten(fx) if len(fx_shape) > 2 else fx 
         inds = K.reshape(random_indices(batch, d_max), (-1, 1))
@@ -131,15 +202,18 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     else:
         # batch x batch x z_dim 
         # for all i, stack_sx[i, :, :] = sx
+        
         repeat = tf.multiply(tf.ones_like(tf.expand_dims(fx, 0)), tf.ones_like(tf.expand_dims(fx, 1)))
         stack_fx = tf.multiply(fx, repeat)
         stack_sx = tf.multiply(sx, repeat)
 
         # select a set of dmax examples from original fx / sx for each batch entry
-        inds = permute_neighbor_indices(batch, d_max, replace = replace)
+        inds = indices_without_replacement(batch, d_max)
         
-        # note that permute_neighbor_indices sets the batch_size dimension != None
+   
+        # Alterntive method:  but note that permute_neighbor_indices sets the batch_size dimension != None
         # this necessitates the use of fit_generator, e.g. in training to avoid 'remainder' batches if data_size % batch > 0
+        #inds = permute_neighbor_indices(batch_size, d_max, replace = replace)
         
         select_sx = tf.gather_nd(stack_sx, inds)
         select_fx = tf.gather_nd(stack_fx, inds)
@@ -156,15 +230,6 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
     # performs the sum over dmax terms to calculate noise
     noise = tf.reduce_sum(fx_sx_echoes, axis = 1) 
     
-    if multiplicative:
-        # unused in paper, not extensively tested                                                                                                                                
-      sx = sx if not calc_log else tf.exp(sx)
-      output = tf.exp(fx + tf.multiply(sx, noise))#tf.multiply(fx, tf.multiply(sx, noise))                                                                                       
-    else:
-      sx = sx if not calc_log else tf.exp(sx)
-      output = fx + tf.multiply(sx, noise)
-
-    
     sx = sx if not calc_log else tf.exp(sx) 
     
     if multiplicative: # log z according to echo
@@ -173,7 +238,6 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
         output = fx + tf.multiply(sx, noise) 
 
     return output if not return_noise else noise
-
   
 def list_id(x, name = None):
   if isinstance(x, list):
