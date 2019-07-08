@@ -107,7 +107,7 @@ def echo_sample(inputs, clip=None, d_max=100, batch=100, multiplicative=False, e
         #   False for softplus
         sx = tf.log(clip) + (-1*sx if not plus_sx else sx)
     
-    if echo_mc is not None:    
+    if echo_mc is not None and echo_mc:    
       # use mean centered fx for noise
       fx = fx - K.mean(fx, axis = 0, keepdims = True)
         
