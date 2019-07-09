@@ -4,6 +4,7 @@ import importlib
 import keras.initializers
 from keras.layers import Dense, Lambda, Reshape
 import model_utils.layers as layers
+#from model_utils.echo_noise import echo_sample
 import tensorflow as tf
 import copy
 import model_utils.activations as activations
@@ -147,10 +148,8 @@ class Layer(object):
 					if self.layer_kwargs.get('bias', None) is not None:
 						del self.layer_kwargs['bias']
 	
-					#z_act = Lambda(sampling.echo_sample, name = 'echo_act'+name_suffix, arguments = self.layer_kwargs)
 					z_act = Lambda(layers.echo_sample, name = 'echo_act'+name_suffix, arguments = self.layer_kwargs)
-					
-				
+                                                
 
 				stats_list.append([z_mean, z_echo_scale])
 				act_list.append(z_act)

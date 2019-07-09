@@ -54,11 +54,6 @@ def indices_without_replacement(batch_size, d_max=-1, replace = False, pop = Tru
       
       #if tf.contrib.framework.is_tensor(batch_size) and not use_old:# replace:
       i = tf.constant(0)
-
-      try:
-          d = tf.cond(tf.equal(batch_size,d_max), lambda: tf.constant(d_max-1), lambda: tf.constant(d_max)) #tf.constant(d_max-1 if tf.equal(batch_size, d_max) else d_max)
-      except:
-          d = tf.cond(tf.equal(batch_size,d_max), lambda: tf.add(d_max, -1), lambda: tf.add(d_max, 0))
     
       cond = lambda b, i: tf.less(tf.shape(i)[0], b)
 

@@ -28,33 +28,76 @@ def gather_nd_reshape(t, indices, final_shape):
 #
 # Deps:
 #   numpy
-def permute_neighbor_indices(
-    batch_size,
-    d_max=-1, replace = False, pop = True,
-    ):
+def indices_without_replacement(batch_size, d_max=-1, replace = False, pop = True):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
 
-    if d_max < 0:
-        d_max = batch_size + d_max
+      replace : bool
+          Assumed false, see echo_sample (and functions above) for sampling with replacement
 
-    inds = []
-    if not replace:
-        for i in range(batch_size):
-            sub_batch = list(range(batch_size))
+      pop : bool
+          whether current training example is excluded when constructing noise
 
-            # pop = False includes training sample for echo 
-            # (i.e. dmax = batch instead of dmax = batch - 1)
-            if pop:
-                sub_batch.pop(i)
-            np.random.shuffle(sub_batch)
-            inds.append(list(enumerate(sub_batch[:d_max])))
-        return inds
+      """
+      try:
+          if d_max < 0:
+              d_max = batch_size + d_max
+      except:
+          pass
+      
+      
+      #looping condition used below     
+      cond = lambda b, i: tf.less(tf.shape(i)[0], b)
+      
 
-    else:
-        for i in range(batch_size):
-            inds.append( list( enumerate(
-                np.random.choice(batch_size, size = d_max, replace = True)
-            )))
-        return inds
+      i = tf.constant(0)
+      batch_range = tf.range(batch_size)
+      off = 0 if pop else 1
+      
+      if pop:
+          batch_mask = tf.where(tf.equal(batch_range, i), tf.zeros_like(batch_range), tf.ones_like(batch_range))
+          batch_range = tf.boolean_mask(batch_range, batch_mask)
+         
+      batch_shuff = tf.random.shuffle(batch_range)
+      dmax_slice = batch_shuff[:d_max]
+      
+      dmax_range = tf.range(batch_size)[:d_max-1+off]
+      dmax_enumerated = tf.concat([tf.expand_dims(dmax_range,1), tf.expand_dims(dmax_slice,1)], axis = -1)      
+      inds = tf.expand_dims(dmax_enumerated,0)
+      
+
+      # Specify encoding samples to be used for Echo Noise construction 
+      #     -- This loop permutes the batch for each training example, yielding :d_max indices for Echo at each data point
+      def loop_call(batch, inds):
+          i = tf.shape(inds)[0] 
+          batch_range = tf.range(batch)
+          
+          if pop:
+              batch_mask = tf.where(tf.equal(batch_range, i), tf.zeros_like(batch_range), tf.ones_like(batch_range))
+              batch_range = tf.boolean_mask(batch_range, batch_mask)
+          
+          # prepare enumerated list of indices (batch, dmax, 2) 
+          #     where (i,j,:) specifies 2d index to find j_th echo sample for training example i
+          batch_shuff = tf.random.shuffle(batch_range)
+          dmax_slice = batch_shuff[:d_max]
+          dmax_range = tf.range(batch_size)[:d_max-1+off]
+          dmax_enumerated = tf.concat([tf.expand_dims(dmax_range,1), tf.expand_dims(dmax_slice,1)], axis = -1)
+          inds = tf.concat([inds, tf.expand_dims(dmax_enumerated, 0)], axis = 0)
+          
+
+          return [batch, inds]
+
+
+      batch, inds = tf.while_loop(cond, loop_call, (batch_size, inds), 
+          shape_invariants = (batch_size.get_shape(), tf.TensorShape([None,None,2])), 
+          swap_memory = True, return_same_structure = True) 
+      
+      return inds
 
 #
 # This function implements the Echo Noise distribution specified in:
@@ -94,7 +137,9 @@ def echo_sample(
  
     fx_shape = fx.get_shape()
     sx_shape = sx.get_shape()
-
+    z_dim = K.int_shape(fx)[-1]
+    batch_size = batch
+    batch = K.shape(fx)[0]
 
     # clip is multiplied times s(x) to ensure that sum of truncated terms < machine precision 
     # clip should be calculated numerically according to App C in paper
@@ -119,16 +164,17 @@ def echo_sample(
         #   False for softplus
         sx = tf.log(clip) + (-1*sx if not plus_sx else sx)
 
-    if echo_mc is not None:    
-        # use mean centered fx for noise
+    
+    if echo_mc is not None and echo_mc:    
+        # use mean centered fx for noise :  performs worse
         fx = fx - K.mean(fx, axis = 0, keepdims = True)
 
-    z_dim = K.int_shape(fx)[-1]
-
     if replace: # replace doesn't set batch size (using permute_neighbor_indices does)
-        batch = K.shape(fx)[0]
+        
         sx = K.batch_flatten(sx) if len(sx_shape) > 2 else sx 
         fx = K.batch_flatten(fx) if len(fx_shape) > 2 else fx 
+        
+        # Sampling with replacement 
         inds = K.reshape(random_indices(batch, d_max), (-1, 1))
         select_sx = gather_nd_reshape(sx, inds, (-1, d_max, z_dim))
         select_fx = gather_nd_reshape(fx, inds, (-1, d_max, z_dim))
@@ -148,10 +194,7 @@ def echo_sample(
         stack_sx = tf.multiply(sx, repeat)
 
         # select a set of dmax examples from original fx / sx for each batch entry
-        inds = permute_neighbor_indices(batch, d_max, replace = replace)
-        
-        # note that permute_neighbor_indices sets the batch_size dimension != None
-        # this necessitates the use of fit_generator, e.g. in training to avoid 'remainder' batches if data_size % batch > 0
+        inds = indices_without_replacement(batch, d_max) 
         
         select_sx = tf.gather_nd(stack_sx, inds)
         select_fx = tf.gather_nd(stack_fx, inds)
@@ -168,22 +211,16 @@ def echo_sample(
     # performs the sum over dmax terms to calculate noise
     noise = tf.reduce_sum(fx_sx_echoes, axis = 1) 
 
+    sx = sx if not calc_log else tf.exp(sx)
     if multiplicative:
-        # unused in paper, not extensively tested  
-      sx = sx if not calc_log else tf.exp(sx)
-      output = tf.exp(fx + tf.multiply(sx, noise))#tf.multiply(fx, tf.multiply(sx, noise))
+      # unused in paper, not extensively tested : log Z has Echo distribution
+      output = tf.exp(fx + tf.multiply(sx, noise))
     else:
-      sx = sx if not calc_log else tf.exp(sx)
       output = fx + tf.multiply(sx, noise)
     
-    sx = sx if not calc_log else tf.exp(sx) 
-    
-    if multiplicative: # log z according to echo
-        output = tf.exp(fx + tf.multiply(sx, noise))
-    else:
-        output = fx + tf.multiply(sx, noise) 
-
     return output if not return_noise else noise
+    
+
 
 #
 # This function implements the Mutual Information penalty (via Echo Noise)
