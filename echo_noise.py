@@ -15,19 +15,6 @@ def gather_nd_reshape(t, indices, final_shape):
     h = tf.gather_nd(t, indices)
     return K.reshape(h, final_shape)
 
-#
-# Produce an index tensor that gives a permuted matrix of other samples in
-# batch, per sample.
-#
-# Parameters
-# ----------
-# batch_size : int
-#     Number of samples in the batch.
-# d_max : int
-#     The number of blocks, or the number of samples to generate per sample.
-#
-# Deps:
-#   numpy
 def indices_without_replacement(batch_size, d_max=-1, replace = False, pop = True):
       """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
       Parameters
@@ -98,6 +85,40 @@ def indices_without_replacement(batch_size, d_max=-1, replace = False, pop = Tru
           swap_memory = True, return_same_structure = True) 
       
       return inds
+
+
+# This function specifies the batch size != None, so may not be ideal for fitting with Keras, e.g.
+#    However, we include it since it is faster than the function above : indices_without_replacement
+#    With replacement can be done without setting the batch size as in the echo_sample code below
+
+def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
+      """Produce an index tensor that gives a permuted matrix of other samples in batch, per sample.
+      Parameters
+      ----------
+      batch_size : int
+          Number of samples in the batch.
+      d_max : int
+          The number of blocks, or the number of samples to generate per sample.
+      """
+      if d_max < 0:
+          d_max = batch_size + d_max
+      inds = []
+      if not replace:
+        for i in range(batch_size):
+          sub_batch = list(range(batch_size))
+          if pop:
+            # pop = False includes training sample for echo 
+            # (i.e. dmax = batch instead of dmax = batch - 1)
+            sub_batch.pop(i)
+          np.random.shuffle(sub_batch)
+          inds.append(list(enumerate(sub_batch[:d_max])))
+        return inds
+      else:
+        for i in range(batch_size):
+            inds.append(list(enumerate(np.random.choice(batch_size, size = d_max, replace = True))))
+        return inds
+
+
 
 #
 # This function implements the Echo Noise distribution specified in:
@@ -195,6 +216,7 @@ def echo_sample(
 
         # select a set of dmax examples from original fx / sx for each batch entry
         inds = indices_without_replacement(batch, d_max) 
+        #inds = permute_neighbor_indices(batch_size, d_max, replace = replace)
         
         select_sx = tf.gather_nd(stack_sx, inds)
         select_fx = tf.gather_nd(stack_fx, inds)
