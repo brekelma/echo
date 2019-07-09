@@ -56,7 +56,7 @@ echo_loss = Lambda(echo_noise.echo_loss)([z_log_scale])
 
 These functions are also found in the experiments code, ```model_utils/layers.py``` and ```model_utils/losses.py```.
 
-We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  A quirk of the current implementation is that sampling with replacement sets the batch dimension != None. This means the model cannot accommodate different batch sizes (e.g. if ```data.shape[0] % batch > 0```) and should be trained using, e.g. ```fit_generator```.   Sampling without replacement does not have this issue.
+We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  Be wary of leftover batches : we choose ```d_max``` samples to construct Echo noise from within the batch, so small batches (esp without replacement) may give inaccurate noise. 
 
 
 ## Instructions:  
