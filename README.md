@@ -56,8 +56,6 @@ echo_loss = Lambda(echo_noise.echo_loss)([z_log_scale])
 
 These functions are also found in the experiments code, ```model_utils/layers.py``` and ```model_utils/losses.py```.
 
-We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  Be wary of leftover batches : we choose ```d_max``` samples to construct Echo noise from within the batch, so small batches (esp without replacement) may give inaccurate noise. 
-
 
 ## Instructions:  
 ```
@@ -66,6 +64,14 @@ python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --datase
 Experiments are specifed using the config files, which specify the network architecture and loss functions.  ```run.py``` calls ```model.py``` to parse these ```configs/``` and create / train a model.  You can also modify the tradeoff parameter ```beta```, which is multiplied by the rate term, or specify the dataset using ```'binary_mnist'```, ```'omniglot'```, or ```'fmnist'.``` . Analysis tools are mostly omitted for now, but the model loss training history is saved in a pickle file.
 
 
+## A note about Echo Sampling and Batch Size:
+We can choose to sample training examples with or without replacement from within the batch for constructing Echo noise.  
+For sampling without replacement, we have two helper functions which shuffle index orderings for x^(l).  ```permute_neighbor_indices``` sets the output batch_size != None and is much faster.  ```indices_without_replacement``` maintains batch_size = None (e.g. for directly fitting with keras ```fit``` method.
+
+Be wary of leftover batches : we choose ```d_max``` samples to construct Echo noise from within the batch, so small batches (esp without replacement) may give inaccurate noise. 
+
+
 
 ## Comparison Methods
 We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations : standard Gaussian prior, standard Gaussian with MMD penalty (```info_vae.json``` or ```iaf_prior_mmd.json```), Masked Autoregressive Flow (MAF), and VampPrior.  All combinations can be found in the ```configs/``` folder. 
+
