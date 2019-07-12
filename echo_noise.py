@@ -143,7 +143,7 @@ def permute_neighbor_indices(batch_size, d_max=-1, replace = False, pop = True):
 def echo_sample(
     inputs,
     clip=None, d_max=100, batch=100, multiplicative=False, echo_mc = False,
-    replace=False, fx_clip=None, plus_sx=True, calc_log=True,
+    replace=False, fx_clip=None, plus_sx=True, calc_log=True, set_batch = True,
     return_noise=False, **kwargs
     ):
     # kwargs unused
@@ -215,8 +215,11 @@ def echo_sample(
         stack_sx = tf.multiply(sx, repeat)
 
         # select a set of dmax examples from original fx / sx for each batch entry
-        inds = indices_without_replacement(batch, d_max) 
-        #inds = permute_neighbor_indices(batch_size, d_max, replace = replace)
+        
+        if not set_batch:
+            inds = indices_without_replacement(batch, d_max) 
+        else:
+            inds = permute_neighbor_indices(batch_size, d_max, replace = replace)
         
         select_sx = tf.gather_nd(stack_sx, inds)
         select_fx = tf.gather_nd(stack_fx, inds)
