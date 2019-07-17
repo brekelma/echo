@@ -29,7 +29,7 @@ and the MI calculation (```echo_loss```), both of which are included in
 file dependencies.
 
 Echo noise is meant to be used similarly to the Gaussian noise in VAEs, and
-was implemented with VAE implementations in mind. Assuming the decoder
+was implemented with VAE implementations in mind. Assuming the inference network
 provides ```z_mean``` and ```z_log_scale```, a Gaussian Encoder would look
 something like:
 ```python
