@@ -11,7 +11,7 @@ Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/190
 }
 ```
 
-## ELBO Experiments
+## Rate-Distortion Experiments
 ```
 python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --dataset 'binary_mnist'
 ```
