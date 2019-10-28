@@ -1,4 +1,4 @@
-# Echo Noise for Exact Mutual Information Calculation
+# Echo Noise experiments
 
 Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/1904.07199
    
@@ -11,7 +11,7 @@ Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/190
 }
 ```
 
-## Overview
+## Rate-Distortion Experiments
 ```
 python run.py --config 'echo.json' --beta 1.0 --filename 'echo_example' --dataset 'binary_mnist'
 ```
