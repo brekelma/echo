@@ -1,14 +1,14 @@
-import keras.backend as K
-from keras.engine.topology import Layer
-from keras.layers import Input, Lambda, merge, Dense, Flatten, Reshape, Average, Conv2D, Concatenate
-from keras import activations
-from keras.optimizers import Adam
-from keras.models import Model
-import keras.models
-import keras.initializers as initializers
-import keras.regularizers as regularizers
-import keras.constraints as constraints
-from keras.initializers import Constant, TruncatedNormal, RandomUniform
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Input, Lambda, Dense, Flatten, Reshape, Average, Conv2D, Concatenate
+from tensorflow.keras import activations
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import Model
+import tensorflow.keras.models
+import tensorflow.keras.initializers as initializers
+import tensorflow.keras.regularizers as regularizers
+import tensorflow.keras.constraints as constraints
+from tensorflow.keras.initializers import Constant, TruncatedNormal, RandomUniform
 import numpy as np
 import tensorflow as tf 
 #from losses import discrim_loss, binary_crossentropy
@@ -18,7 +18,7 @@ import model_utils.losses as losses
 import copy
 import importlib 
 import itertools
-import keras.optimizers
+import tensorflow.keras.optimizers
 from collections import defaultdict
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -269,19 +269,10 @@ def vae_sample(inputs, std = 1.0, return_noise = False, try_mvn = False):
   # standard reparametrization trick: N(0,1) => N(mu(x), sigma(x))
   z_mean, z_noise = inputs
   
-  try:
-    z_score = K.random_normal(shape=(z_mean._keras_shape[-1],),
-                                mean=0.,
-                                stddev=std)
-  except:
-    try:
-      z_score = K.random_normal(shape=(z_mean.get_shape().as_list()[-1],),
-                                mean=0.,
-                                stddev=std)
-    except:
-      z_score = K.random_normal(shape=(z_mean.shape[-1],),
-                                mean=0.,
-                                stddev=std)
+  z_score = K.random_normal(shape= tf.shape(z_mean),
+                            mean=0.,
+                            stddev=std)
+  
   return z_mean + K.exp(z_noise / 2) * z_score if not return_noise else K.expand_dims(z_score, 0)
     
 
@@ -303,15 +294,86 @@ def ido_sample(inputs):
   return K.exp(z_mean + K.exp(z_noise / 2) * z_score)
  
 
+def clip_by_value_preserve_gradient(t, clip_value_min, clip_value_max,
+                                    name=None):
+    with tf.name_scope(name or 'clip_by_value_preserve_gradient'):
+        t = tf.convert_to_tensor(t, name='t')
+        clip_t = tf.clip_by_value(t, clip_value_min, clip_value_max)
+        return t + tf.stop_gradient(clip_t - t)
+
+def lstm_masked_template(hidden_layers,
+                       shift_only=False,
+                       activation=tf.nn.relu,
+                       log_scale_min_clip=-5.,
+                       log_scale_max_clip=3.,
+                       log_scale_clip_gradient=False,
+                       name=None,
+                       *args,  # pylint: disable=keyword-arg-before-vararg
+                       **kwargs):
+
+    name = name or 'lstm_masked_template'
+    with tf.name_scope(name):
+        def _fn(x):
+            """MADE parameterized via `masked_autoregressive_default_template`."""
+            # TODO(b/67594795): Better support of dynamic shape.
+            input_depth = tf1.dimension_value(
+              tf1.TensorShape.with_rank_at_least(x.shape, 1)[-1])
+            if input_depth is None:
+                raise NotImplementedError(
+                    'Rightmost dimension must be known prior to graph execution.')
+            input_shape = (
+              np.int32(tf1.TensorShape.as_list(x.shape))
+              if tf1.TensorShape.is_fully_defined(x.shape) else tf.shape(x))
+            print("FIRST X MASKED TEMPLATE ", x)
+            #f tf1.TensorShape.rank(tf.shape(x)) == 1:
+            if len(tf1.TensorShape.as_list(x.shape)) == 1:
+                x = x[tf.newaxis, ...]
+            for i, units in enumerate(hidden_layers):
+                x = tfb.masked_dense(
+                    inputs=x,
+                    units=units,
+                    num_blocks=input_depth,
+                    exclusive=True if i == 0 else False,
+                    activation=activation,
+                    *args,  # pylint: disable=keyword-arg-before-vararg
+                    **kwargs)
+            # input depth = number of latent dims
+            x = tfb.masked_dense(
+              inputs=x,
+              units= 2 * input_depth, #SHIFT ONLY DOESN"T MAKE SENSE for LSTM-type update
+                     #(1 if shift_only else 2) * input_depth,
+              num_blocks=input_depth,
+              activation=None,
+              *args,  # pylint: disable=keyword-arg-before-vararg
+              **kwargs)
+            
+            #if shift_only:
+            #    x = tf.reshape(x, shape=input_shape)
+            #    return x, None
+            x = tf.reshape(x, shape=tf.concat([input_shape, [2]], axis=0))
+            # IAF lstm-type update
+            shift, logit = tf.unstack(x, num=2, axis=-1)
+            std = tf.nn.sigmoid(logit)
+            shift = shift - tf.multiply(std, shift)
+            log_scale = tf.math.log_sigmoid(logit)
+
+            which_clip = (
+              tf.clip_by_value
+              if log_scale_clip_gradient else clip_by_value_preserve_gradient)
+            log_scale = which_clip(log_scale, log_scale_min_clip, log_scale_max_clip)
+            return shift, log_scale
+
+    return tf1.make_template(name, _fn)
 
 class MAF(Layer):
-  def __init__(self, steps = None, layers = None, activation = 'relu', mean_only = True, name = 'maf_chain', 
+  def __init__(self, steps = None, layers = [640,640,640], activation = 'relu', mean_only = True, name = 'maf_chain', 
       return_both = False, add_base = False, bijector = None, maf = None, density = None, **kwargs):
     
     self.layers = tuple(layers)
     self.steps = steps if steps is not None else 1
     self.mean_only = mean_only
-    self.name = name
+    self._name = name
+
     try:
       mod = importlib.import_module('keras.activations')
       self.activation = getattr(mod, self.activation)
@@ -330,23 +392,26 @@ class MAF(Layer):
     super(MAF, self).__init__(**kwargs)
 
   def build(self, input_shape):
-    # input shape is list of [z_mean, z_std]                                                                                                                                                       
-
-
+    # input shape is list of [z_mean, z_std]                                                                                                                                                      
     if isinstance(input_shape, list):
       self.dim = input_shape[0][-1]
+      input_shape = input_shape[0]
     else:
       self.dim = input_shape[-1]
-
+    
     if self.layers is None:
-      self.layers = [self.dim, self.dim, self.dim]
+      self.layers = [self.dim*10, self.dim*10, self.dim*10]
+    
+    #********** HACKY: manually specified batch size... modify *********
+    zeros_shape = [100, 1, 1, self.dim] if len(input_shape)==4 else [100, self.dim]
 
     if self.bijector is None:
+    # activation defaults to relu
       maf_chain = list(itertools.chain.from_iterable([
         tfb.MaskedAutoregressiveFlow(
           shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-              hidden_layers=self.layers, shift_only=self.mean_only, name = self.name+str(i))),
-              #**{"kernel_initializer": tf.ones_initializer()}))),                                                                                                                                      
+              hidden_layers=self.layers, shift_only=self.mean_only, activation = tf.nn.relu, name = self._name+str(i))),
+              #**{"kernel_initializer": tf.ones_initializer()}))), 
         tfb.Permute(list(reversed(range(self.dim))))] #)                                                                                                                                                
             for i in range(self.steps)))
 
@@ -355,7 +420,7 @@ class MAF(Layer):
       
       self.maf = tfd.TransformedDistribution(
         distribution= tfd.MultivariateNormalDiag(
-        loc=tf.zeros([self.dim]), allow_nan_stats = False), # scale = tf.ones([dim]),
+            loc=tf.zeros(zeros_shape), allow_nan_stats = False), # scale = tf.ones([dim]),
         bijector= self.bijector, 
         name = 'maf_chain')
       
@@ -385,7 +450,7 @@ class MAF(Layer):
     return -self.density if not self.return_both else [-self.density, self.base]
 
   def get_density(self, x):
-    return K.expand_dims(self.density, 1)
+    return -K.expand_dims(self.density, 1)
 
   def get_base_output(self, x = None):
     return self.base
@@ -401,13 +466,14 @@ class MAF(Layer):
 
 
 class IAF(Layer):
-  def __init__(self, steps = None, layers = None, activation = 'relu', mean_only = True, name = 'iaf_chain', 
-                dim = None, bijector = None, iaf = None, density = None, return_both = False, **kwargs):
+  def __init__(self, steps = None, layers = [640,640,640], activation = 'relu', mean_only = True, name = 'iaf_chain', 
+                dim = None, bijector = None, iaf = None, density = None, return_both = False, lstm = False, **kwargs):
     
+    self.lstm = lstm  #lstm style update from Kingma et al.
     self.layers = layers
     self.steps = steps if steps is not None else 1
     self.mean_only = mean_only
-    self.name = name
+    self._name = name
     try:
       mod = importlib.import_module('keras.activations')
       self.activation = getattr(mod, self.activation)
@@ -426,14 +492,14 @@ class IAF(Layer):
     super(IAF, self).__init__(**kwargs)
 
   def __deepcopy__(self):
-    return IAF(steps = self.steps, layers = self.layers, activation = self.activation, mean_only = self.mean_only, name = self.name,
+    return IAF(steps = self.steps, layers = self.layers, activation = self.activation, mean_only = self.mean_only, name = self._name,
                dim = self.dim, bijector = self.bijector, iaf = self.iaf, density = self.density)
 
   def get_config(self):
     config = {'layers': self.layers,
               'steps': self.steps,
               'mean_only': self.mean_only,
-              'name': self.name,
+              'name': self._name,
               'activation': self.activation,
               'dim': self.dim,
               'bijector': self.bijector,
@@ -454,15 +520,25 @@ class IAF(Layer):
       self.layers = [self.dim, self.dim, self.dim]
     
     if self.bijector is None:
-      iaf_chain = list(itertools.chain.from_iterable([
-        tfb.Invert(tfb.MaskedAutoregressiveFlow(
-          shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-              hidden_layers=self.layers, shift_only=self.mean_only, name = self.name+str(i)))),
-              #**{"kernel_initializer": tf.ones_initializer()}))),
-        tfb.Permute(list(reversed(range(self.dim))))] #)
-            for i in range(self.steps)))
+        if self.lstm:
+            # **** doesn't allow mean only or consider custom activations*********
+            iaf_chain = list(itertools.chain.from_iterable([
+                tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                    shift_and_log_scale_fn=lstm_masked_template(
+                        hidden_layers=self.layers,  activation = tf.nn.relu, name = self._name+str(i)))), 
+                #**{"kernel_initializer": tf.ones_initializer()}))),                                                                                  
+                tfb.Permute(list(reversed(range(self.dim))))] #)
+                for i in range(self.steps)))
+        else:
+            iaf_chain = list(itertools.chain.from_iterable([
+                tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                    shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                        hidden_layers=self.layers, shift_only=self.mean_only, activation = tf.nn.relu, name = self._name+str(i)))),
+                #**{"kernel_initializer": tf.ones_initializer()}))),
+                tfb.Permute(list(reversed(range(self.dim))))] #)
+                for i in range(self.steps)))
 
-      self.bijector = tfb.Chain(iaf_chain[:-1]) 
+        self.bijector = tfb.Chain(iaf_chain[:-1]) 
 
       
     self.built = True
@@ -479,14 +555,17 @@ class IAF(Layer):
     
     last_samples = self.iaf.sample()
     
-    #self.density = self.iaf.log_prob(last_samples)
+
+    self.base = self.iaf.bijector.inverse(last_samples)
+
     
-    #try:
-    self.density = K.squeeze(K.squeeze(self.iaf.log_prob(last_samples), 1),1)
-    #except:
-    #  pass
+    self.density = self.iaf.log_prob(last_samples)
+    try:
+        self.density = K.squeeze(K.squeeze(self.density, 1),1)
+    except:
+        pass
     
-    return (last_samples) if not self.return_both else [last_samples, self.density]
+    return last_samples if not self.return_both else [last_samples, self.density]
 
   def get_density(self, x):
     return K.expand_dims(self.density, 1) 
@@ -494,51 +573,17 @@ class IAF(Layer):
   def compute_output_shape(self, input_shape):
     return input_shape[0] if not self.return_both else input_shape
 
+  def get_base(self, x = None):
+    print("BASE SIZE ", self.base)
+    return self.base
+                    
   def get_log_det_jac(self, x):
-    return self.iaf.inverse_log_det_jacobian(x, 0)
-
-
-
-
-
-class PseudoInput(Layer):
-  def __init__(self, dim = 784, init = None, **kwargs):
-      self.shape = dim
-      self.init_noise = 0.01
-      self.init = init + np.random.normal(scale=self.init_noise, size = init.shape) if init is not None else None
-      self.initialize = True
-      self.trainable = True
-      super(PseudoInput, self).__init__(**kwargs)
-
-  def build(self, input_shape):
-      self.dim = input_shape[-1]
-      self.full_shape = input_shape
-      # random init (but overridden if self.init is given, which feeds starting values e.g. input mean) 
-      self.pixels = self.add_weight(name='pseudos', 
-                                      shape = (self.shape,),
-                                      initializer= TruncatedNormal(mean=0.5, stddev = 0.25),
-                                      trainable= True)
-      super(PseudoInput, self).build(input_shape) 
-
-  def call(self, x):
-    if self.initialize and self.init is not None:
-      self.set_weights([self.init])
-      self.initialize = False
- 
-    return K.expand_dims(self.pixels,0) #tf.multiply(K.ones_like(x), self.pixels)
-
-
-  def get_inputs(self):
-      return self.get_weights()[0][0]
-
-
-  def compute_output_shape(self, input_shape):
-      return input_shape
-
+    return K.expand_dims(self.iaf.bijector.inverse_log_det_jacobian(x, 1),0)
 
 
 class VampNetwork(Layer):
-  def __init__(self, encoder_mu = None, encoder_var = None, layers = None, inputs = None, input_shape = (28,28,1), activation = None, init = None, lr = 0.0003, arch = 'conv', **kwargs):
+  def __init__(self, encoder_mu = None, encoder_var = None, layers = None,  inputs = None, input_shape = (28,28,1), activation = None, init = None, init_noise = 0.00, 
+                  lr = 0.0003, arch = 'conv', **kwargs):
       # if no encoders, will train new q(z|x)
       self.layers = layers
       self.model_layers = []
@@ -546,11 +591,13 @@ class VampNetwork(Layer):
       # feed encoder models (used for vae, but not iaf)
       self.encoder_mu = encoder_mu
       self.encoder_var = encoder_var
+      self.init = init
+      self.init_noise = init_noise
 
       self.inputs = inputs if inputs is not None else 500
       self.activation = activation if activation is not None else 'relu'
-      self.pseudo_inputs = []
-      self.pseudo_init = None
+      #self.pseudo_inputs = []
+      self.pseudo_init = init
       self.create_network = True
       self.lr = lr
       self.arch = arch # if training encoder
@@ -561,78 +608,79 @@ class VampNetwork(Layer):
 
   def build(self, input_shape):
       if isinstance(input_shape, list):
-        self.z_shape = input_shape[0]
+        try:
+          if isinstance(input_shape[0], list):
+            self.z_shape = input_shape[0][0]
+            self.ldj_shape= input_shape[0][1]
+          else:
+            self.z_shape = input_shape[0]
+        except:
+          self.z_shape = input_shape[0]
         self.x_shape = input_shape[1]
       else:
-        raise ValueError("Exprected input shape to be a list, got: ", input_shape)
+        raise ValueError("Expected input shape to be a list, got: ", input_shape)
       
-      for k in range(self.inputs):
-        self.pseudo_inputs.append(PseudoInput(dim = self.x_shape[-1], init = self.pseudo_init))
+      print()
+      print("Z SHAPE ", self.z_shape)
+      if len(self.pseudo_init.shape) == 1:
+        self.pseudo_init = np.expand_dims(self.pseudo_init, 0)
+      pseudo_dim = np.prod(np.array(self.x_shape[1:]))
+      #self.pseudo_init = self.pseudo_init + np.zeros(shape = (self.inputs, pseudo_dim))
       
-      if self.encoder_mu is None:
-        for i in range(len(self.layers)):
-          layer_size = self.layers[i]
-          if self.arch == 'dense':
-            self.model_layers.append(Dense(layer_size, activation = self.activation, name = 'vamp_'+str(i)))
-          elif self.arch == 'alemi' or self.arch == 'conv':
-            sizes = {0:5, 1:5, 2:5, 3:5, 4:7}
-            stride = {0:1, 1:2, 2:1, 3:2, 4:1}
-            self.model_layers.append(Conv2D(layer_size, sizes[i], activation = self.activation, strides= stride[i], padding = 'same' if i < len(self.layers)-1 else 'valid',
-                                         name = 'vamp_'+str(i)))
-        self.mu_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_mean_vamp')
-        self.logvar_layer = Dense(self.z_shape[-1], activation = 'linear', name = 'z_logvar_vamp')
-      else:
-        # use already trained encoder
-        self.mu_layer = self.encoder_mu
-        self.logvar_layer = self.encoder_var
+      #self.pseudo_init = tf.Variable(self.pseudo_init, name = 'pseudo_inputs', trainable=True, dtype = tf.float32)
+      #self.pseudos = self.pseudo_init +tf.random.normal(tf.constant((self.inputs, pseudo_dim), tf.int32), mean = 0.0, stddev =self.init_noise) 
+      #self.pseudo_init = self.pseudo_init + tf.random.normal(tf.constant((self.inputs, pseudo_dim), tf.int32), mean = 0.0, stddev =self.init_noise) 
+      self.pseudo_init = self.pseudo_init + np.random.normal(size = (self.inputs, pseudo_dim), loc = 0.0, scale =self.init_noise) 
+      self.pseudos = tf.Variable(self.pseudo_init, name = 'pseudo_inputs', trainable = True, dtype = tf.float32)
+      self.pseudos = tf.identity(self.pseudos)
+      
+      #K.get_session().run(tf.initialize_variables([self.pseudos]))
+      self.pseudo_input = Input(tensor = self.pseudos)
+        #PseudoInput2(dim = pseudo_dim, init = self.pseudo_init)
+      #for k in range(self.inputs):
+      #  self.pseudo_inputs.append(PseudoInput(dim = pseudo_dim, init = self.pseudo_init))
+      
+      
+      self.mu_layer = self.encoder_mu
+      self.logvar_layer = self.encoder_var
       
       super(VampNetwork, self).build(input_shape) 
 
   def call(self, x):
-    print("Input VAMP ", x)
     if isinstance(x, list):
-      self.z = x[0]
-      self.x = x[1]
+      if isinstance(x[0],list):
+        _ = x[0][0] # density
+        self.z = x[0][1] # iaf base
+        # log det jac (for non-mean-only IAF... be sure to add to 'addl' in layer_args) 
+        self.ldj = x[0][2] 
+        self.x = x[1]
+      else:
+        self.z = x[0] 
+        self.x = x[1]
     else:
       self.z = x
     
     self.z = K.batch_flatten(self.z)
+    
 
     if self.create_network:
       pdfs = []
-      #inp = Input(tensor = self.x)#self.x_shape[1:])
-      #print("Inp1 ", inp)
-      #inp2 = Input(tensor = self.z) #shape = self.z_shape[1:])
-      #print("Inp2 ", inp2)
-      self.pseudos=[]
-      for i in range(len(self.pseudo_inputs)):
-        pseudo = self.pseudo_inputs[i](self.x)
-        if self.arch == 'conv':
-          pseudo = Reshape(self.inp_shp)(pseudo)
-        self.pseudos.append(pseudo)
 
-      self.pseudos = Concatenate(axis = 0)(self.pseudos)
-
-      if self.encoder_mu is None:
-        h = self.pseudos
-        for j in range(len(self.model_layers)):
-            h = self.model_layers[j](h)
-        mu = K.batch_flatten(self.mu_layer(h))
-        var = K.batch_flatten(self.logvar_layer(h))
-      else:
-        mu = K.batch_flatten(self.mu_layer(self.pseudos))
-        var = K.batch_flatten(self.logvar_layer(self.pseudos))
-
+      mu = K.batch_flatten(self.mu_layer(self.pseudo_input))
+      var = K.batch_flatten(self.logvar_layer(self.pseudo_input))
 
       z_eval = [K.expand_dims(self.z,0), K.expand_dims(mu,1), K.expand_dims(var,1)]
       
-      # eval on 1 x batch x z_dim vs. pseudos x 1 x z_dim, then average over pseudos
+
       pdf = Lambda(losses.gaussian_pdf, arguments = {'log': True, 'negative': True})(z_eval)      
-      avg = Lambda(lambda x: K.mean(x ,axis =0, keepdims = True))(pdf)
-      
-      return avg
+      avg = Lambda(lambda y: K.mean(y , axis = 0, keepdims = True))(pdf)
+      ret = Lambda(lambda y: K.mean(y, axis = 1, keepdims = True))(avg)
+      ret = Lambda(lambda y: K.sum(y, axis = -1))(ret)
+      try:
+          return ret + tf.reduce_mean(self.ldj)
+      except:
+          return ret
         
 
-
   def compute_output_shape(self, input_shape):
-      return input_shape[0]
+      return (None, 1) #input_shape[0]

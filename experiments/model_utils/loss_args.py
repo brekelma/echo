@@ -1,12 +1,12 @@
 import numpy as np
-import keras.backend as K
+import tensorflow.keras.backend as K
 import importlib
 import tensorflow as tf
 import model_utils.losses as l
 import model_utils.layers as layers
 #import model
-from keras.layers import Lambda
-import keras.models
+from tensorflow.keras.layers import Lambda
+import tensorflow.keras.models
 
 #from model import RECON_LOSSES
 
@@ -112,7 +112,7 @@ class Loss(object):
 
 
         elif self.type in ['vamp', 'vamp_prior']:
-            self.from_layer = ['act']
+            self.from_layer = ['addl_list'] #['act']
             self.from_output = ['act']
             return layers.VampNetwork(name = 'vamp', **self.loss_kwargs)
         
@@ -132,7 +132,7 @@ class Loss(object):
         else:
             # TRY IMPORT OF FUNCTION FROM LOSSES
             try:
-                func = self._import_loss(self.type, 'keras.losses')
+                func = self._import_loss(self.type, 'tensorflow.keras.losses')
             except:
                 print("Trying import ", self.type, " from l ")
                 func = self._import_loss(self.type, 'losses')

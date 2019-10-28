@@ -1,14 +1,22 @@
+from itertools import product
 import numpy as np
 import six
 from six.moves.urllib.request import urlretrieve
 from abc import ABC, abstractmethod
-from scipy.misc import imread
+#from scipy.misc import imread
 from scipy.io import loadmat
 import os 
 import gzip
 import pickle
 import copy 
+from evaluation import util
+#from disentanglement_lib.data.ground_truth import util
 
+
+#BASE_DATASETS = '/auto/rcf-proj/gv/brekelma/echo_sandbox/datasets
+BASE_DATASETS = '/nas/home/brekelma/datasets'
+
+#BASE_DATASETS = '/data/brekelma/echo_sandbox/datasets' #/home/ec2-user/echo_sandbox/datasets' #'/home/rcf-proj/gv/brekelma/datasets'
 def get_file(fname,
              origin,
              untar=False,
@@ -227,7 +235,7 @@ class MNIST(Dataset):
 
     def get_data(self, onehot = False, path = None):
         if path is None and self.binary:
-            path = './datasets/mnist/MNIST_binary'
+            path = os.path.join(BASE_DATASETS, 'mnist', 'MNIST_binary')
         elif path is None:
             path = 'MNIST_data/mnist.npz'
 
@@ -266,7 +274,7 @@ class MNIST(Dataset):
             #return train_data, validation_data, test_data
 
 class fMNIST(Dataset):
-    def __init__(self, binary = False, val = 0, per_label = None):
+    def __init__(self, binary = False, val =10000, per_label = None):
         self.dims = [28,28]
         self.dim1 = 28
         self.dim2 = 28
@@ -284,7 +292,7 @@ class fMNIST(Dataset):
 
     def get_data(self, kind = 'train', path = None):
         if path is None:
-            path = './datasets/mnist/fMNIST'
+            path = os.path.join(BASE_DATASETS, 'mnist', 'fMNIST')
 
         """Load MNIST data from `path`"""
         labels_path = os.path.join(path,
@@ -318,16 +326,26 @@ class DSprites(Dataset):
         self.dim2 = 64
         self.dim = 4096
         self.name = 'dsprites'
-        self.x_train, _, self.y_train, _ = self.get_data()
+        self.x_train, self.latent_ground_truth, self.y_train, _ = self.get_data()
         self.x_val = None
-        self.x_test = None
-        
+        self.x_test = self.x_train #None
+        self.y_test = self.y_train
+
     def get_data(self):
-        dataset_zip = np.load('datasets/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz', encoding = 'bytes') # ‘latin1’
+        dataset_zip = np.load(os.path.join(BASE_DATASETS,'dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz'), encoding = 'bytes', allow_pickle=True) # ‘latin1’
         imgs = dataset_zip['imgs']
         imgs = imgs.reshape((imgs.shape[0], -1))
         latent_ground_truth = dataset_zip['latents_values']
         latent_for_classification = dataset_zip['latents_classes']
+        
+        try:
+            self.factor_sizes = np.array(
+                dataset_zip["metadata"][()]["latents_sizes"], dtype=np.int64)
+            self.full_factor_sizes = [1, 3, 6, 40, 32, 32]
+            self.state_space = util.SplitDiscreteStateSpace(self.factor_sizes,
+                                                 self.latent_factor_indices)
+        except:
+            pass
         metadata = dataset_zip['metadata']
         return imgs, latent_ground_truth, latent_for_classification, metadata
 
@@ -353,7 +371,7 @@ class Omniglot(Dataset):
 
     def get_data(self, onehot = False, path = None):
         if path is None:
-            path = './datasets/omniglot'
+            path =os.path.join(BASE_DATASETS, 'omniglot')
         data = {}
         loadmat(os.path.join(path, 'chardata.mat'), data)
         x_train = data['data'].transpose()
@@ -454,17 +472,246 @@ class CelebA(Dataset):
 
 
 class Cifar10(Dataset):
-    def __init__(self):
+    def __init__(self, normalize = False):
         self.dim1 = 32
         self.dim2 = 32
         self.dim3 = 3
-        self.dim = 32*32*3
+        self.dim = 3072
         self.dims = [32,32,3]
         self.name = 'cifar10'
+        self.normalize = normalize
         self.x_train, self.x_test, self.y_train, self.y_test = self.get_data()
-        
+
     def get_data(self):
         from keras.datasets import cifar10
         (X_train, y_train), (X_test, y_test) = cifar10.load_data()
+
+        X_train = X_train.astype('float32')
+        X_test = X_test.astype('float32')
+        X_train = X_train / 255.0
+        X_test = X_test / 255.0
+
+        norm_mu = [.4814, .4822, .4465]
+        norm_std = [.246, .243, .261]
+
+        if self.normalize:
+            X_train[...,0] = np.divide((X_train[...,0] - norm_mu[0]), norm_std[0])
+            X_train[...,1] = np.divide((X_train[...,1] - norm_mu[1]), norm_std[1])
+            X_train[...,2] = np.divide((X_train[...,2] - norm_mu[2]), norm_std[2])
+            X_test[...,0] = np.divide((X_test[...,0] - norm_mu[0]), norm_std[0])
+            X_test[...,1] = np.divide((X_test[...,1] - norm_mu[1]), norm_std[1])
+            X_test[...,2] = np.divide((X_test[...,2] - norm_mu[2]), norm_std[2])
+
         return X_train, X_test, y_train, y_test
-        #raise NotImplementedError
+        #raise NotImplementedError                                                                                                                                                                                
+
+def get_coords_from_index(idx, factor_sizes):
+    coords = []
+    cur = idx
+    for n in factor_sizes[::-1]:
+        coords.append(cur % n)
+        cur = cur // n
+    return coords[::-1]
+
+    
+
+
+class DSpritesCorrelated(Dataset):
+    def __init__(self, remove_prob = 0.2, n_blocks=8,
+                data_dir = None, indices=None, classification=False, colored=False):    
+        self.dims = [64,64]
+        self.dim1 = 64
+        self.dim2 = 64
+        self.dim = 4096
+        self.name = 'dsprites'
+
+        self.valid_indices, self.invalid = self.get_correlated_indices(remove_prob=remove_prob, seed=42, classification=False,
+                                      colored=False, n_blocks=n_blocks)
+
+        self.x_train, self.y_train = self.get_data(indices = self.valid_indices)
+        self.x_test, self.y_test = self.get_data(indices = self.invalid)
+
+        print("DATASET Init as TRAIN: ", self.x_train.shape, "TEST : ", self.x_test.shape, ' invalid : ', np.array(self.invalid.shape))
+        
+        print("CHANGING to : ")
+
+    def get_data(self, indices = None, classification = False, colored = False):
+        data_dir = os.path.join(BASE_DATASETS,'dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')
+
+        #super(DSpritesDataset, self).__init__()
+        data = np.load(data_dir, encoding = 'latin1', allow_pickle=True)
+        #np.load(data_dir, encoding='latin1')
+
+        indices = self.indices if indices is None else indices
+        # color related stuff
+        self.colored = colored
+        self.colors = None
+        self.n_colors = 1
+        indices_without_color = indices
+        if colored:
+            color_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      'resources/rainbow-7.npy')
+            self.colors = np.load(color_file)
+            self.n_colors = len(self.colors)
+            indices_without_color = [idx // self.n_colors for idx in indices]
+
+        # factor_names and factor_sizes
+        
+
+        meta = data['metadata'].item()
+        try:
+            self.factor_names = list(meta['latents_names'][1:])
+            self.factor_sizes = list(meta['latents_sizes'][1:])
+        except:
+            self.factor_names = ['shape', 'scale', 'orientation', 'posX', 'posY']
+            self.factor_sizes = [3, 6, 40, 32, 32]
+
+
+        if colored:
+            self.factor_names.append('color')
+            self.factor_sizes.append(self.n_colors)
+        self.n_factors = len(self.factor_names)
+
+        # save relevant part of the grid
+        self.imgs = data['imgs'][indices_without_color]
+        print()
+        print("IMGS ", self.imgs.shape)
+        print()
+        # factor values, classes, possible_values
+        self.factor_values = data['latents_values'][indices_without_color]
+        self.factor_values = [arr[1:] for arr in self.factor_values]
+
+        self.factor_classes = data['latents_classes'][indices_without_color]
+        self.factor_classes = [arr[1:] for arr in self.factor_classes]
+
+        self.possible_values = []
+        for name in ['shape', 'scale', 'orientation', 'posX', 'posY']:
+            #print("Factor : ", name, " . Values : ", meta['latents_possible_values'][name])
+            self.possible_values.append(meta['latents_possible_values'][name])
+
+        if colored:
+            for i, idx in enumerate(indices):
+                color_class = idx % self.n_colors
+                color_value = color_class / (self.n_colors - 1.0)
+                self.factor_classes[i] = np.append(self.factor_classes[i], color_class)
+                self.factor_values[i] = np.append(self.factor_values[i], color_value)
+            self.possible_values.append(list(np.arange(0, self.n_colors) / (self.n_colors - 1.0)))
+
+        self.classification = classification
+
+        # dataset name
+        self.dataset_name = 'dsprites'
+        self.name = 'dsprites'
+        if self.colored: 
+            self.dataset_name += '-colored'
+
+        # factor types
+        self.is_categorical = [True, False, False, False, False]
+        if self.colored:
+            self.is_categorical.append(True)
+        
+        self.imgs = np.squeeze(self.imgs)
+        x_train = self.imgs.reshape((self.imgs.shape[0], -1))
+        y_train = self.factor_classes
+
+        return x_train, y_train
+
+    def get_correlated_indices(self, remove_prob=0.2, seed=2, classification=False,
+                                      colored=False, n_blocks=8):
+        
+        np.random.seed(seed)
+        n_factors = 5
+        factor_sizes = [3, 6, 40, 32, 32]
+        is_categorical = [True, False, False, False, False]
+        if colored:
+            n_factors += 1
+            factor_sizes.append(7)
+            is_categorical.append(True)
+        N = np.prod(factor_sizes).astype(int)
+        invalid_pairs = [[None] * n_factors for _ in range(n_factors)]
+
+        def split_into_blocks(n_states, n_blocks):
+            block_lens = [n_states // n_blocks for _ in range(n_blocks)]
+            for idx in range(n_states % n_blocks):
+                block_lens[idx] += 1
+            blocks = []
+            start = 0
+            for size in block_lens:
+                blocks.append((start, start + size))
+                start += size
+            return blocks
+        
+        count = 0
+        total = 0
+        print("N FACTORS ", n_factors)
+        for i in range(n_factors):
+            for j in range(i+1, n_factors):
+                ni = (factor_sizes[i] if is_categorical[i] else min(n_blocks, factor_sizes[i]))
+                nj = (factor_sizes[j] if is_categorical[j] else min(n_blocks, factor_sizes[j]))
+                a = split_into_blocks(factor_sizes[i], ni)
+                b = split_into_blocks(factor_sizes[j], nj)
+                pairs = list(product(a, b))
+                invalid_pairs[i][j] = set()
+                total += len(pairs)
+                for ra, rb in pairs:
+                    if np.random.rand() < remove_prob:
+                        count +=1
+                        for x in range(ra[0], ra[1]):
+                            for y in range(rb[0], rb[1]):
+                                invalid_pairs[i][j].add((x, y))
+        invalid = np.zeros((N,), dtype=np.bool)
+        for idx in range(N):
+            coords = get_coords_from_index(idx, factor_sizes)
+
+            for i in range(n_factors):
+                for j in range(i+1, n_factors):
+                    if (coords[i], coords[j]) in invalid_pairs[i][j]:
+                        invalid[idx] = True
+
+        valid_indices = np.where(~invalid)[0]
+        print()
+        print("VALID SIZE ", valid_indices.shape)
+    #    return self.valid_indices
+
+    #def calc_dist_info(self):
+        #valid_indices = self.valid_indices
+        # calculate statistics about the distribution
+        dist_info = dict()
+        probs = (~invalid).astype(np.float) / len(valid_indices)
+        marginal_probs = [np.zeros((fk_states,)) for fk_states in factor_sizes]
+
+        for state_idx in range(N):
+            coords = get_coords_from_index(state_idx, factor_sizes)
+            for c, k in zip(coords, range(n_factors)):
+                marginal_probs[k][c] += probs[state_idx]
+
+        marginal_entropies = np.zeros((n_factors,))
+        for k in range(n_factors):
+            for fk_val in range(factor_sizes[k]):
+                p = marginal_probs[k][fk_val]
+                if p > 0:
+                    marginal_entropies[k] -= p * np.log(p)
+
+        joint_entropy = np.log(len(valid_indices))
+
+        dist_info['invalid_pairs'] = invalid_pairs
+        dist_info['probs'] = probs
+        dist_info['marginal_probs'] = marginal_probs
+        dist_info['marginal_entropies'] = marginal_entropies
+        dist_info['joint_entropy'] = joint_entropy
+        dist_info['TC'] = np.sum(marginal_entropies) - joint_entropy
+
+
+        print("*"*50, "DISTRIBUTION STATS ", "*"*50)
+        for k in dist_info.keys():
+            print(k, ": ", dist_info[k])
+        print("*"*100)
+
+        self.dist_info = dist_info
+
+        #self.valid_indices = valid_indices
+        invalid = np.where(invalid)[0]
+        return valid_indices, invalid #dist_info
+
+    def __len__(self):
+        return len(self.imgs)

@@ -1,9 +1,9 @@
-from keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback
 import tensorflow as tf
 import numpy as np
-import keras.backend as K
-from keras.backend import get_session
-from keras.backend import eval
+import tensorflow.keras.backend as K
+from tensorflow.keras.backend import get_session
+from tensorflow.keras.backend import eval
 from collections import defaultdict
 
 class BetaCallback(Callback):

@@ -1,12 +1,12 @@
 import sys
 import numpy as np
 import tensorflow as tf
-from keras import backend as K
-from keras import objectives
-import keras.losses
-import keras.models as km
-from keras.layers import Lambda, Concatenate, average, concatenate, add
-from keras.callbacks import Callback, TensorBoard
+from tensorflow.keras import backend as K
+#from tensorflow.keras import objectives
+import tensorflow.keras.losses
+import tensorflow.keras.models as km
+from tensorflow.keras.layers import Lambda, Concatenate, average, concatenate, add
+from tensorflow.keras.callbacks import Callback, TensorBoard
 
 from functools import partial
 import tensorflow_probability as tfp
@@ -16,7 +16,7 @@ tfb = tfp.bijectors
 
 EPS = K.epsilon()
 
-# silly placeholders for keras training, i.e. dim_sum([x_true, already_calculated_loss])
+# silly placeholders for tensorflow.keras training, i.e. dim_sum([x_true, already_calculated_loss])
 def dim_sum(true, tensor, keepdims = False):
     return K.sum(tensor, axis = -1, keepdims = keepdims)
 

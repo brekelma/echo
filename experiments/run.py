@@ -12,6 +12,7 @@ parser.add_argument('--beta', type=float)
 parser.add_argument('--validate', type=bool, default = 1)
 parser.add_argument('--verbose', type=bool, default = 0)
 parser.add_argument('--fit_gen', type=bool, default = 1)
+parser.add_argument('--fit_tf', type=bool, default = 0)
 parser.add_argument('--per_label')
 parser.add_argument('--dataset', type=str, default = 'binary_mnist')
 args, _ = parser.parse_known_args()
@@ -40,6 +41,7 @@ if args.per_label is not None:
         d.shrink_supervised(args.per_label)
 
 m = model.NoiseModel(d, config = config, filename = args.filename, verbose = args.verbose)
+m.lagrangian_fit = args.fit_tf
 
 
 if args.noise is not None:

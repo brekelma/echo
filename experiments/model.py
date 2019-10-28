@@ -10,7 +10,7 @@ tf.set_random_seed(t)
 import importlib
 import json
 from collections import defaultdict
-from keras import backend as K
+from tensorflow.keras import backend as K
 import pickle
 from copy import copy
 import h5py
@@ -23,11 +23,11 @@ import model_utils.losses as losses
 from model_utils.loss_args import Loss
 
 
-import keras.backend as K
-from keras.layers import Input, Dense, merge, Lambda, Flatten #Concatenate, 
-from keras.layers import Activation, BatchNormalization, Lambda, Reshape 
-import keras.optimizers
-from keras.callbacks import Callback, TensorBoard, TerminateOnNaN
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Input, Dense, Lambda, Flatten #Concatenate, 
+from tensorflow.keras.layers import Activation, BatchNormalization, Lambda, Reshape 
+import tensorflow.keras.optimizers
+from tensorflow.keras.callbacks import Callback, TensorBoard, TerminateOnNaN
 from model_utils.callbacks import ZeroAnneal
 from model_utils.callbacks import MyLearningRateScheduler as LearningRateScheduler
 #from keras_normalized_optimizers.optimizer import NormalizedOptimizer
@@ -100,11 +100,11 @@ class NoiseModel(Model):
                 self.density_callback = False
         
         def encoder_model(self):
-                return keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
+                return tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
         def encoder_fx_model(self):
-                return keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0])
+                return tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0])
         def encoder_sx_model(self):
-                return keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0])
+                return tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0])
 
         def fit(self, x_train, y_train = None, x_val = None, y_val = None, verbose = None, validate = True, fit_gen = True):
                 if verbose is not None:
@@ -131,18 +131,18 @@ class NoiseModel(Model):
                 
                 
                 
-                #self.encoder_model = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
+                #self.encoder_model = tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['act'])
 
-                self.encoder_mu = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][0])
-                self.encoder_var = keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][-1])
+                self.encoder_mu = tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][0])
+                self.encoder_var = tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.encoder_layers[-1]['stat'][0][-1])
                 
                 self.decoder_layers = self._build_architecture(self.encoder_layers[-1]['act'], encoder = False)
                 #dec_input_tensor = Input(tensor = self.encoder_layers[-1]['act'][0])
-                #self.decoder_model = keras.models.Model(inputs = dec_input_tensor, outputs = self.decoder_layers[-1]['act'])
+                #self.decoder_model = tensorflow.keras.models.Model(inputs = dec_input_tensor, outputs = self.decoder_layers[-1]['act'])
 
                 self.model_outputs, self.model_losses, self.model_loss_weights = self._make_losses()
 
-                self.model = keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
+                self.model = tensorflow.keras.models.Model(inputs = self.input_tensor, outputs = self.model_outputs)
 
                 self.model_loss_weights = [tf.Variable(lw, dtype = tf.float32, trainable = False) for lw in self.model_loss_weights]
                 
@@ -164,7 +164,7 @@ class NoiseModel(Model):
                                 pass
                 #self.encoder_model.compile(optimizer = self.optimizer, loss = self.model_losses[0])
 
-                self.sess = tf.Session()
+                #self.sess = tf.Session()
                 with self.sess.as_default():
                         tf.global_variables_initializer().run()
 
@@ -204,7 +204,7 @@ class NoiseModel(Model):
                         #self.get_layer(self.dataset_clean.x_test, name = 'fx')
 
                 #self.decoder_model.save(self.filename+'_decoder.hdf5')
-                self.model.save_weights(self.filename+"_model_weights.hdf5")
+                self.model.save_weights(self.filename+"_model_weights.h5")
                 self.pickle_dump()
    
 
@@ -260,7 +260,7 @@ class NoiseModel(Model):
                 print("INPUTS ", self.model.inputs)
                 oputs = [self.model.layers[i].get_output_at(0)]
                 print("proposed outputs ", oputs)
-                new_m = keras.models.Model(inputs = self.model.inputs, outputs = oputs)
+                new_m = tensorflow.keras.models.Model(inputs = self.model.inputs, outputs = oputs)
                 
                 try:
                         loss_list = new_m.predict(x, batch_size = self.batch)
@@ -683,7 +683,7 @@ class NoiseModel(Model):
                         del self.optimizer_params["norm"]
                 else:
                         opt_norm = None 
-                self.optimizer = getattr(keras.optimizers, self.optimizer)(**self.optimizer_params)
+                self.optimizer = getattr(tensorflow.keras.optimizers, self.optimizer)(**self.optimizer_params)
                 
                 #if opt_norm is not None:
                 #    self.optimizer = NormalizedOptimizer(self.optimizer, normalization = opt_norm)
@@ -698,7 +698,7 @@ class NoiseModel(Model):
                                 self.lr = getattr(mod, self.lr)
                         except:
                                 try:
-                                        mod = importlib.import_module(str('custom_functions.lr_sched'))
+                                        mod = importlib.import_module(str('model_utils.lr_sched'))
                                         # LR Callback will be True /// self.lr = function of epochs -> lr
                                         self.lr_callback = isinstance(self.lr, str)
                                         self.lr = getattr(mod, self.lr)

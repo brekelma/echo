@@ -1,0 +1,165 @@
+{                                                            
+    "epochs": 26,
+    "batch": 64,
+    "optimizer": "Adam",
+        "optimizer_params": {},
+    "lr": 0.0001,
+    "input_shape": [64, 64, 1],
+    "latent_dims": [32, 32, 64, 64, [1,1,1024], 256, 10],
+    "decoder_dims": [256, 1024, [4,4,64], 64, 32, 32, 1],
+    "layers": 
+    [
+	{
+	    "layer": 0, 
+	    "encoder": true,
+	    "type": "Conv2D",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 1, 
+	    "encoder": true,
+	    "type": "Conv2D",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 2, 
+	    "encoder": true,
+	    "type": "Conv2D",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 2,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 3, 
+	    "encoder": true,
+	    "type": "Conv2D",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 2,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	    {
+		"layer":4,
+		"encoder":true,
+		"type":"Reshape"
+		    },
+	{
+	    "layer": 5, 
+	    "encoder": true,
+	    "type": "Dense",
+	    "activation": "tensorflow.keras.activations.relu"
+	    },
+	{
+	    "layer": -1, 
+	    "encoder": true,
+	    "type": "vae"
+	       },
+	{
+	    "layer": 0, 
+	    "encoder": false,
+	    "type": "Dense",
+	    "activation": "tensorflow.keras.activations.relu"
+	    },
+	{
+	    "layer": 1, 
+	    "encoder": false,
+	    "type": "Dense",
+	    "activation": "tensorflow.keras.activations.relu"
+	    },
+	{
+	    "layer": 2, 
+	    "encoder": false,
+	    "type": "Reshape",
+	    "layer_kwargs":
+	    {
+		}
+	    },
+	{
+	    "layer": 3, 
+	    "encoder": false,
+	    "type": "Conv2DTranspose",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 4, 
+	    "encoder": false,
+	    "type": "Conv2DTranspose",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 5, 
+	    "encoder": false,
+	    "type": "Conv2DTranspose",
+	    "activation": "tensorflow.keras.activations.relu",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    },
+	{
+	    "layer": 6, 
+	    "encoder": false,
+	    "type": "Conv2DTranspose",
+	    "activation": "tensorflow.keras.activations.sigmoid",
+	    "layer_kwargs":
+	    {
+		"kernel_size": 4,
+		"strides": 2, 
+		"padding": "same"
+		}
+	    }
+	], 
+    "initializer": "glorot_uniform",
+    "activation": {  
+	"encoder": "softplus",
+	"decoder": "softplus"
+	},
+    "output_activation" : "sigmoid",
+    "recon": "bce", 
+    "losses":
+    [
+	{
+	    "type": "vae",
+	    "layer": -1, 
+	    "encoder": true,
+	    "weight": 1.0
+	    }
+	],
+    "beta": 1.0,
+    "lagrangian_fit": 0,
+    "anneal_schedule": null, 
+    "anneal_function": null
+}

@@ -77,7 +77,8 @@
 			"layer_kwargs":{
 				"d_max": 100,
 				"noise": "additive",
-				"clip": 0.8359,
+			        "fx_clip": 10,
+				"clip": 0.8175,
 			        "init": 1.0,
 			        "bias":0.0,
 			        "echomc": false,
@@ -85,7 +86,7 @@
 			        "replace": false,
 			    "calc_log": true,
 			    "mean_shift": false,
-			    "fx_act": "model_utils.activations.tanh16",    
+			    "fx_act": "tensorflow.keras.linear",    
 			    "sx_act": "tensorflow.math.log_sigmoid"
 			}	
 			},
@@ -189,7 +190,8 @@
 			"encoder": true,
 			"weight": 1.0,
 			    "loss_kwargs":{
-				"calc_log": true
+				"calc_log": true,
+				"clip": 0.8175
 			    }
 			}
 		],

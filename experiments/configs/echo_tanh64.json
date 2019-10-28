@@ -85,7 +85,7 @@
 			        "replace": false,
 			    "calc_log": true,
 			    "mean_shift": false,
-			    "fx_act": "model_utils.activations.tanh16",    
+			    "fx_act": "model_utils.activations.tanh64",    
 			    "sx_act": "tensorflow.math.log_sigmoid"
 			}	
 			},
