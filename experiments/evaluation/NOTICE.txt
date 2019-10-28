@@ -1,0 +1,5 @@
+##############################
+
+This code has been adapted from https://github.com/google-research/disentanglement_lib with minor changes for incorporation into this repo.  Please inform of any licensing issues
+
+##############################
