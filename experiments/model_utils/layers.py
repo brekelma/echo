@@ -642,8 +642,10 @@ class VampNetwork(Layer):
       #self.pseudo_init = tf.Variable(self.pseudo_init, name = 'pseudo_inputs', trainable=True, dtype = tf.float32)
       #self.pseudos = self.pseudo_init +tf.random.normal(tf.constant((self.inputs, pseudo_dim), tf.int32), mean = 0.0, stddev =self.init_noise) 
       #self.pseudo_init = self.pseudo_init + tf.random.normal(tf.constant((self.inputs, pseudo_dim), tf.int32), mean = 0.0, stddev =self.init_noise) 
+      
       self.pseudo_init = self.pseudo_init + np.random.normal(size = (self.inputs, pseudo_dim), loc = 0.0, scale =self.init_noise) 
       self.pseudos = tf.Variable(self.pseudo_init, name = 'pseudo_inputs', trainable = True, dtype = tf.float32)
+
       #self.pseudos = tf.identity(self.pseudos)
       
       #K.get_session().run(tf.initialize_variables([self.pseudos]))
