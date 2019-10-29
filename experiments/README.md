@@ -11,7 +11,7 @@ Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/190
 }
 ```
 ## Versions
-Experiments run using Tensorflow 1.13.2, TF Probability 0.6.0, Keras 2.3.1
+Experiments run using Tensorflow 1.13.2, TF Probability 0.6.0, Keras 2.3.1 with standard versions of the BinaryMNIST, Omniglot, and FMNIST as cited in paper (also see ```dataset.py```)
 
 
 ## Rate-Distortion Experiments
