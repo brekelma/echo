@@ -10,6 +10,9 @@ Tensorflow/Keras code replicating the experiments in:  https://arxiv.org/abs/190
   year={2019}
 }
 ```
+## Versions
+Experiments run using Tensorflow 1.13.2, TF Probability 0.6.0, Keras 2.3.1
+
 
 ## Rate-Distortion Experiments
 ```
