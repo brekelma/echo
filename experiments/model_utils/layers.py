@@ -504,7 +504,8 @@ class IAF(Layer):
               'dim': self.dim,
               'bijector': self.bijector,
               'iaf': self.iaf,
-              'density': self.density
+              'density': self.density,
+              'lstm': self.lstm
     }
     base_config = super(IAF, self).get_config()
     return dict(list(base_config.items()) + list(config.items()))
@@ -610,18 +611,29 @@ class VampNetwork(Layer):
       if isinstance(input_shape, list):
         try:
           if isinstance(input_shape[0], list):
-            self.z_shape = input_shape[0][0]
-            self.ldj_shape= input_shape[0][1]
-          else:
-            self.z_shape = input_shape[0]
+            input_shape = input_shape[0]
         except:
-          self.z_shape = input_shape[0]
+          pass
+        self.z_shape = input_shape[0]
         self.x_shape = input_shape[1]
       else:
         raise ValueError("Expected input shape to be a list, got: ", input_shape)
+
+      # if isinstance(input_shape, list):
+      #   try:
+      #     if isinstance(input_shape[0], list):
+      #       self.z_shape = input_shape[0][0]
+      #       self.ldj_shape= input_shape[0][1]
+      #     else:
+      #       self.z_shape = input_shape[0]
+      #   except:
+      #     self.z_shape = input_shape[0]
+      #   self.x_shape = input_shape[1]
+      # else:
+      #   raise ValueError("Expected input shape to be a list, got: ", input_shape)
       
-      print()
-      print("Z SHAPE ", self.z_shape)
+      # print()
+      # print("Z SHAPE ", self.z_shape)
       if len(self.pseudo_init.shape) == 1:
         self.pseudo_init = np.expand_dims(self.pseudo_init, 0)
       pseudo_dim = np.prod(np.array(self.x_shape[1:]))
@@ -648,17 +660,24 @@ class VampNetwork(Layer):
 
   def call(self, x):
     if isinstance(x, list):
-      if isinstance(x[0],list):
-        _ = x[0][0] # density
-        self.z = x[0][1] # iaf base
-        # log det jac (for non-mean-only IAF... be sure to add to 'addl' in layer_args) 
-        self.ldj = x[0][2] 
-        self.x = x[1]
-      else:
-        self.z = x[0] 
-        self.x = x[1]
+      self.z = x[0]
+      self.x = x[1]
     else:
       self.z = x
+    
+    # code to incorporate log_det_jac adjustment of encoder flow
+    # if isinstance(x, list):
+    #   if isinstance(x[0],list):
+    #     _ = x[0][0] # density
+    #     self.z = x[0][1] # iaf base
+    #     # log det jac (for non-mean-only IAF... be sure to add to 'addl' in layer_args) 
+    #     self.ldj = x[0][2] 
+    #     self.x = x[1]
+    #   else:
+    #     self.z = x[0] 
+    #     self.x = x[1]
+    # else:
+    #   self.z = x
     
     self.z = K.batch_flatten(self.z)
     
@@ -676,10 +695,10 @@ class VampNetwork(Layer):
       avg = Lambda(lambda y: K.mean(y , axis = 0, keepdims = True))(pdf)
       ret = Lambda(lambda y: K.mean(y, axis = 1, keepdims = True))(avg)
       ret = Lambda(lambda y: K.sum(y, axis = -1))(ret)
-      try:
-          return ret + tf.reduce_mean(self.ldj)
-      except:
-          return ret
+      #try:
+      #    return ret + tf.reduce_mean(self.ldj)
+      #except:
+      return ret
         
 
   def compute_output_shape(self, input_shape):
