@@ -9,7 +9,7 @@ Tensorflow/Keras code accompanying:  https://arxiv.org/abs/1904.07199
   year={2019}
 }
 ```
-Echo noise is a drop-in alternative for Gaussian noise that admits a simple, exact expression for mutual information  I(X:Z).
+Echo is a drop-in alternative for Gaussian noise that admits a simple, exact expression for mutual information  I(X:Z).
 
 ## Echo Noise
 
