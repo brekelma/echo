@@ -1,7 +1,8 @@
 # Echo Noise for Exact Mutual Information Calculation
 
 Tensorflow/Keras code accompanying:  https://arxiv.org/abs/1904.07199
- ```
+Echo is a drop-in alternative for Gaussian noise that admits a simple, exact expression for mutual information.
+```
 @article{brekelmans2019exact,
   title={Exact Rate-Distortion in Autoencoders via Echo Noise},
   author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Ver Steeg, Greg},
@@ -9,7 +10,7 @@ Tensorflow/Keras code accompanying:  https://arxiv.org/abs/1904.07199
   year={2019}
 }
 ```
-Echo noise is a drop-in alternative for Gaussian noise that admits a simple, exact expression for mutual information.
+
 
 ## Echo Noise
 
