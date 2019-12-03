@@ -1,8 +1,15 @@
 # Echo Noise for Exact Mutual Information Calculation
 
 Tensorflow/Keras code accompanying:  https://arxiv.org/abs/1904.07199
-   
-Echo noise is flexible, data-driven alternative to Gaussian noise that admits an simple, exact expression for mutual information by construction.  Applied in the autoencoder setting, we show that regularizing with I(X:Z) corresponds to the optimal choice of prior in the Evidence Lower Bound and leads to significant improvements over VAEs.  
+ ```
+@article{brekelmans2019exact,
+  title={Exact Rate-Distortion in Autoencoders via Echo Noise},
+  author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Ver Steeg, Greg},
+  journal={arXiv preprint arXiv:1904.07199},
+  year={2019}
+}
+```
+Echo noise is a drop-in alternative for Gaussian noise that admits a simple, exact expression for mutual information  I(X:Z).
 
 ## Echo Noise
 
@@ -66,13 +73,4 @@ Also be wary of leftover batches : we choose ```d_max``` samples to construct Ec
 ## Comparison Methods
 We compare diagonal Gaussian noise encoders ('VAE') and IAF encoders, alongside several marginal approximations : standard Gaussian prior, standard Gaussian with MMD penalty (```info_vae.json``` or ```iaf_prior_mmd.json```), Masked Autoregressive Flow (MAF), and VampPrior.  All combinations can be found in the ```configs/``` folder. 
 
-## Reference
 
-```
-@article{brekelmans2019exact,
-  title={Exact Rate-Distortion in Autoencoders via Echo Noise},
-  author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Ver Steeg, Greg},
-  journal={arXiv preprint arXiv:1904.07199},
-  year={2019}
-}
-```
