@@ -7,7 +7,7 @@ Echo is a drop-in alternative for Gaussian noise that admits a simple, exact exp
 @article{brekelmans2019exact,
   title={Exact Rate-Distortion in Autoencoders via Echo Noise},
   author={Brekelmans, Rob and Moyer, Daniel and Galstyan, Aram and Ver Steeg, Greg},
-  journal={arXiv preprint arXiv:1904.07199},
+  journal={Advances in Neural Information Processing Systems},
   year={2019}
 }
 ```
